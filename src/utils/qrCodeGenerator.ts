@@ -15,6 +15,42 @@ export interface QRCodeDeliveryPayload {
 }
 
 /**
+ * Returns the permanent, unchanging validation URL for a specific Tourism Office.
+ * When scanned by any smartphone camera, it opens this URL and automatically validates
+ * pending deliveries for that office.
+ */
+export function getOfficePermanentQRUrl(officeCode: string, officeId: string): string {
+  let origin = 'https://flyerstock.ahp.pt';
+  let pathname = '/';
+  if (typeof window !== 'undefined' && window.location) {
+    origin = window.location.origin;
+    pathname = window.location.pathname || '/';
+  }
+  return `${origin}${pathname}?officeValidate=${encodeURIComponent(officeCode)}&officeId=${encodeURIComponent(officeId)}`;
+}
+
+// In-memory cache for permanent office QR codes so they are instant
+const officeQrCache: Record<string, string> = {};
+
+/**
+ * Generate permanent QR Code for a Tourism Office.
+ * The QR code is ALWAYS THE SAME for each tourism office.
+ */
+export async function generateOfficePermanentQRCode(officeCode: string, officeId: string): Promise<string> {
+  const cacheKey = `${officeCode}_${officeId}`;
+  if (officeQrCache[cacheKey]) {
+    return officeQrCache[cacheKey];
+  }
+
+  const url = getOfficePermanentQRUrl(officeCode, officeId);
+  const dataUrl = await generateQRCodeDataUrl(url);
+  if (dataUrl) {
+    officeQrCache[cacheKey] = dataUrl;
+  }
+  return dataUrl;
+}
+
+/**
  * Generate a cryptographically unique verification token for a delivery
  */
 export function generateDeliveryQRToken(deliveryRef: string, officeCode: string): string {
@@ -63,3 +99,4 @@ export async function generateQRCodeDataUrl(text: string): Promise<string> {
     return '';
   }
 }
+

@@ -8,6 +8,7 @@ import { OtherDeliveriesView } from './components/OtherDeliveriesView';
 import { TourismOfficesHubView } from './components/TourismOfficesHubView';
 import { PrintableDeliveryArchiveModal } from './components/PrintableDeliveryArchiveModal';
 import { OfficeQRCodeScannerModal } from './components/OfficeQRCodeScannerModal';
+import { MobileOfficeValidationView } from './components/MobileOfficeValidationView';
 import { DeliveryModal } from './components/DeliveryModal';
 import { StockInModal } from './components/StockInModal';
 import { DepletionLogModal } from './components/DepletionLogModal';
@@ -133,6 +134,25 @@ export default function App() {
   // Safe Authentication Session State (Enterprise Private Portal - Not Open Source)
   const [session, setSession] = useState<AuthSession | null>(() => getCurrentSession());
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+
+  // Mobile QR Code Auto-Validation State (triggered when scanned on mobile phone)
+  const [mobileValidationOffice, setMobileValidationOffice] = useState<{
+    code: string;
+    id?: string;
+  } | null>(() => {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const officeValidate = params.get('officeValidate');
+      const officeId = params.get('officeId');
+      if (officeValidate || officeId) {
+        return {
+          code: officeValidate || '',
+          id: officeId || undefined,
+        };
+      }
+    }
+    return null;
+  });
 
   const handleLogout = () => {
     clearSession();
@@ -580,6 +600,26 @@ export default function App() {
       showToast('Reset to default demonstration data.');
     }
   };
+
+  // If user scanned the Tourism Office permanent QR code on a mobile phone, render the auto-validation mobile screen
+  if (mobileValidationOffice) {
+    return (
+      <MobileOfficeValidationView
+        officeCode={mobileValidationOffice.code}
+        officeId={mobileValidationOffice.id}
+        offices={offices}
+        flyers={flyers}
+        deliveries={deliveries}
+        onConfirmDelivery={handleConfirmDelivery}
+        onEnterPortal={() => {
+          if (typeof window !== 'undefined' && window.history) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+          setMobileValidationOffice(null);
+        }}
+      />
+    );
+  }
 
   // If user is not authenticated, render the Enterprise Login Enter Page
   if (!session) {

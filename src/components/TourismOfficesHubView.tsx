@@ -730,6 +730,17 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                       <span>Edit Office</span>
                     </button>
 
+                    {/* Permanent Office QR Code Plaque & Scanner */}
+                    <button
+                      type="button"
+                      onClick={() => onOpenScanner(activeOffice)}
+                      className="px-2.5 py-1.5 text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-md border border-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                      title="View the permanent QR code for this Tourism Office"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Permanent QR</span>
+                    </button>
+
                     {/* Delete Office Button */}
                     {onDeleteOffice && offices.length > 1 && (
                       <button
@@ -1087,26 +1098,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                                 </button>
                               )}
 
-                              {/* Show QR Code Button */}
+                              {/* Simplified Voucher Archive & Permanent QR Button */}
                               <button
                                 type="button"
                                 onClick={() => fl && onOpenPrintSlip(del, activeOffice, fl)}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
-                                title="Show QR Code for Tourism Office to read & confirm"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
+                                title="View & Print simplified delivery archive voucher with permanent Office QR"
                               >
-                                <QrCode className="w-3.5 h-3.5" />
-                                <span>QR Code</span>
-                              </button>
-
-                              {/* Print Official Archive Voucher Button */}
-                              <button
-                                type="button"
-                                onClick={() => fl && onOpenPrintSlip(del, activeOffice, fl)}
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded text-xs font-medium shadow-2xs cursor-pointer transition-colors"
-                                title="Print official delivery archive voucher"
-                              >
-                                <Printer className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Voucher</span>
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Voucher &amp; QR</span>
                               </button>
 
                               {/* Delete Delivery Button */}

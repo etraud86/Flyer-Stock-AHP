@@ -1,25 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
   X,
-  QrCode,
   CheckCircle2,
+  QrCode,
   Scan,
-  Building2,
-  Package,
-  Calendar,
-  User,
   ShieldCheck,
+  Building2,
+  Calendar,
   Printer,
-  Sparkles,
-  Camera,
+  User,
+  AlertCircle,
+  Smartphone,
 } from 'lucide-react';
 import { DeliveryRecord, FlyerType, TourismOffice } from '../types';
+import {
+  generateOfficePermanentQRCode,
+  getOfficePermanentQRUrl,
+} from '../utils/qrCodeGenerator';
+import { AHPCasteloIcon } from './AHPLogo';
 
 interface OfficeQRCodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   office: TourismOffice;
-  pendingDeliveries: DeliveryRecord[];
+  pendingDeliveries?: DeliveryRecord[];
   allDeliveries: DeliveryRecord[];
   flyers: FlyerType[];
   onConfirmDelivery: (deliveryId: string, confirmedBy: string) => void;
@@ -30,40 +34,44 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
   isOpen,
   onClose,
   office,
-  pendingDeliveries,
   allDeliveries,
   flyers,
   onConfirmDelivery,
   onOpenPrintSlip,
 }) => {
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>(
-    pendingDeliveries[0]?.id || allDeliveries[0]?.id || ''
+  // Find pending deliveries for this office
+  const pendingDeliveries = allDeliveries.filter(
+    (d) => d.confirmationStatus !== 'confirmed'
   );
+  const defaultDeliveryId = pendingDeliveries[0]?.id || allDeliveries[0]?.id || '';
+
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>(defaultDeliveryId);
   const [staffName, setStaffName] = useState<string>(
-    office.contactPerson || `${office.name} Desk Staff`
+    office.contactPerson || `${office.name} Reception`
   );
-  const [isScanning, setIsScanning] = useState<boolean>(false);
-  const [scannedSuccess, setScannedSuccess] = useState<boolean>(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedSuccess, setScannedSuccess] = useState(false);
   const [confirmedDelivery, setConfirmedDelivery] = useState<DeliveryRecord | null>(null);
+  const [permanentQrUrl, setPermanentQrUrl] = useState<string>('');
 
   useEffect(() => {
-    if (pendingDeliveries.length > 0) {
-      setSelectedDeliveryId(pendingDeliveries[0].id);
-    } else if (allDeliveries.length > 0) {
-      setSelectedDeliveryId(allDeliveries[0].id);
-    }
-  }, [pendingDeliveries, allDeliveries]);
+    if (!isOpen || !office) return;
 
-  useEffect(() => {
-    setStaffName(office.contactPerson || `${office.name} Desk Staff`);
+    setSelectedDeliveryId(pendingDeliveries[0]?.id || allDeliveries[0]?.id || '');
+    setStaffName(office.contactPerson || `${office.name} Reception`);
     setScannedSuccess(false);
     setConfirmedDelivery(null);
-  }, [isOpen, office]);
+
+    generateOfficePermanentQRCode(office.code, office.id).then((url) => {
+      setPermanentQrUrl(url);
+    });
+  }, [isOpen, office, pendingDeliveries.length, allDeliveries.length]);
 
   if (!isOpen) return null;
 
   const activeDelivery = allDeliveries.find((d) => d.id === selectedDeliveryId);
   const activeFlyer = flyers.find((f) => f.id === activeDelivery?.flyerTypeId);
+  const permanentWebUrl = getOfficePermanentQRUrl(office.code, office.id);
 
   const handleSimulateScanAndConfirm = () => {
     if (!activeDelivery) return;
@@ -77,31 +85,37 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
         confirmationStatus: 'confirmed',
         confirmedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
         confirmedBy: staffName,
+        confirmationSignatureCode: `VERIFIED-AHP-${office.code}-${activeDelivery.deliveryRef.replace(/[^A-Z0-9]/gi, '').slice(-4)}`,
       };
       setConfirmedDelivery(updatedDelivery);
       onConfirmDelivery(activeDelivery.id, staffName);
-    }, 1200);
+    }, 800);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-emerald-800 text-white">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-700/80 flex items-center justify-center">
-              <QrCode className="w-4 h-4 text-emerald-200" />
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-neutral-950 text-white">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-700 flex items-center justify-center">
+              <AHPCasteloIcon className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Tourism Office QR Delivery Scanner</h3>
-              <p className="text-[11px] text-emerald-200">
-                {office.name} ({office.code}) &bull; Digital Receipt Verification
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm">Tourism Office Permanent QR</h3>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  {office.code}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400">
+                {office.name} &bull; Constant Office QR Code
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white p-1 rounded-md transition-colors cursor-pointer"
+            className="text-neutral-400 hover:text-white p-1 rounded-md transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -120,7 +134,7 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                   Delivery Automatically Confirmed!
                 </h4>
                 <p className="text-slate-600 mt-1 max-w-sm mx-auto text-xs">
-                  QR Code read successfully. Received{' '}
+                  Permanent QR Code scanned successfully. Received{' '}
                   <strong className="text-slate-900">
                     {confirmedDelivery.quantityDelivered.toLocaleString()} flyers
                   </strong>{' '}
@@ -160,7 +174,7 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                   className="w-full sm:w-auto px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Print Delivery Archive Slip</span>
+                  <span>View &amp; Print Archive Voucher</span>
                 </button>
                 <button
                   type="button"
@@ -173,20 +187,38 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
             </div>
           ) : (
             <>
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-slate-600 text-[11px]">
-                  <strong>Paperless Digital Signature:</strong> When promotional flyers arrive at the
-                  office, scan or read the delivery QR code. Receipt confirmation is logged
-                  instantly with a timestamp and digital verification seal for your physical or
-                  digital filing archive.
+              {/* Permanent QR Visual & Explanation */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-4">
+                <div className="shrink-0 bg-white p-2 rounded-lg border border-slate-300 shadow-2xs">
+                  {permanentQrUrl ? (
+                    <img
+                      src={permanentQrUrl}
+                      alt={`Permanent QR ${office.name}`}
+                      className="w-20 h-20 object-contain"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 flex items-center justify-center text-slate-400">
+                      <QrCode className="w-8 h-8 text-slate-300" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Permanent Office QR Code</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    This QR code is unique and permanent to <strong>{office.name}</strong>.
+                    Point any smartphone camera at it to automatically validate delivery reception!
+                  </p>
                 </div>
               </div>
 
               {/* Delivery Select */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Select Delivery to Scan &amp; Confirm *
+                  Select Delivery for {office.name} *
                 </label>
                 <select
                   value={selectedDeliveryId}
@@ -220,7 +252,7 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                       </span>
                       <div className="font-bold text-slate-900 text-sm">{activeFlyer?.name}</div>
                       <span className="text-[11px] text-slate-500">
-                        SKU: {activeFlyer?.sku} &bull; Idioma: {activeFlyer?.language}
+                        SKU: {activeFlyer?.sku} &bull; Language: {activeFlyer?.language}
                       </span>
                     </div>
 
@@ -262,17 +294,14 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                     required
                     value={staffName}
                     onChange={(e) => setStaffName(e.target.value)}
-                    placeholder="e.g. Maria Ferreira (Posto de Turismo Sortelha)"
+                    placeholder="e.g. Maria Ferreira"
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded bg-white text-slate-900 focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  This name will be digitally stamped into the official delivery archive voucher.
-                </span>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-slate-200 space-y-2">
+              <div className="pt-2 border-t border-slate-200 space-y-2">
                 <button
                   type="button"
                   disabled={isScanning || !activeDelivery}
@@ -282,12 +311,12 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                   {isScanning ? (
                     <>
                       <Scan className="w-4 h-4 animate-spin" />
-                      <span>Reading QR Code &amp; Verifying Receipt...</span>
+                      <span>Validating Permanent Office QR Code...</span>
                     </>
                   ) : (
                     <>
                       <Scan className="w-4 h-4" />
-                      <span>Read QR Code &amp; Auto-Confirm Delivery</span>
+                      <span>Scan Permanent QR &amp; Auto-Confirm</span>
                     </>
                   )}
                 </button>
@@ -302,7 +331,7 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
                     className="w-full py-2 px-4 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5 text-slate-500" />
-                    <span>View &amp; Print Archive Voucher Directly</span>
+                    <span>View &amp; Print Simplified Voucher Archive</span>
                   </button>
                 )}
               </div>
