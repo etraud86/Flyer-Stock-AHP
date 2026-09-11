@@ -19,6 +19,10 @@ import {
   KeyRound,
   ShieldCheck,
   User,
+  ChevronDown,
+  Layers,
+  Sparkles,
+  QrCode,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -32,6 +36,7 @@ import {
   AuthUser,
 } from '../types';
 import { exportToExcelWorkbook } from '../utils/excelExport';
+import { AHPCasteloIcon } from './AHPLogo';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -83,272 +88,366 @@ export const Navbar: React.FC<NavbarProps> = ({
   metricOverrides,
 }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
 
   const handleExport = () => {
-    exportToExcelWorkbook(flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides);
+    exportToExcelWorkbook(
+      flyers,
+      offices,
+      deliveries,
+      batches,
+      fairs,
+      otherDeliveries,
+      metricOverrides
+    );
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <header className="bg-neutral-950 border-b border-neutral-800/90 text-neutral-100 sticky top-0 z-30 shadow-md">
       {/* Top Notification Bar if stockouts exist */}
       {(depletedCount > 0 || criticalCount > 0) && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-900 flex items-center justify-between">
+        <div className="bg-amber-950/90 border-b border-amber-900/60 px-4 py-1.5 text-xs text-amber-200 flex items-center justify-between">
           <div className="flex items-center gap-2 font-medium">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
-              <strong>Distribution Alert:</strong> {depletedCount} office flyer type(s) are currently <strong>out of flyers</strong>, and {criticalCount} are in critical runout (&lt; 5 days).
+              <strong>Distribution Alert:</strong> {depletedCount} office(s) are currently{' '}
+              <strong>out of flyers</strong>, and {criticalCount} in critical runout (&lt; 5 days).
             </span>
           </div>
           <button
             onClick={() => setActiveTab('depletion')}
-            className="text-amber-800 hover:text-amber-950 font-semibold underline cursor-pointer ml-4"
+            className="text-amber-300 hover:text-white font-semibold underline cursor-pointer ml-4 transition-colors"
           >
-            Review Depletions →
+            Review Stockouts →
           </button>
         </div>
       )}
 
+      {/* Main Top Header Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-3">
-          {/* Brand & Identity */}
+          {/* Brand & Identity with Official Castle Emblem */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="h-10 px-2 rounded-lg bg-slate-950 text-white flex items-center justify-center gap-1.5 shadow-xs border border-slate-800">
-              <img
-                src="/logo_ahp_white.svg"
-                alt="Aldeias Históricas de Portugal"
-                className="h-7 w-auto object-contain"
-              />
+            <div className="h-10 w-10 rounded-xl bg-neutral-900 border border-neutral-700/80 flex items-center justify-center p-2 shadow-xs shrink-0 text-white hover:border-neutral-600 transition-colors">
+              <AHPCasteloIcon className="w-full h-full text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-black text-slate-900 text-sm sm:text-base leading-none tracking-tight">
+                <span className="font-black text-white text-sm sm:text-base leading-none tracking-tight">
                   Flyer Stock AHP
                 </span>
-                <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 tracking-wide">
-                  Aldeias Históricas
+                <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-800/80 tracking-wide">
+                  Historical Villages
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-                Tourism Office Delivery &amp; Time Lapse Tracker &bull; 1 destino que são 12
+              <p className="text-[11px] text-neutral-400 mt-0.5 hidden md:block">
+                Promotional Flyers &amp; Tourism Offices Logistics &bull; 1 Destination That Is 12
               </p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav className="hidden lg:flex items-center p-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-medium text-slate-600">
-            <button
-              id="tab-dashboard-btn"
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'dashboard'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Dashboard</span>
-            </button>
-
-            <button
-              id="tab-spreadsheet-btn"
-              onClick={() => setActiveTab('spreadsheet')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'spreadsheet'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Excel Grid</span>
-            </button>
-
-            <button
-              id="tab-depletion-btn"
-              onClick={() => setActiveTab('depletion')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'depletion'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-blue-600" />
-              <span>Time Lapse</span>
-              {depletedCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-700 font-bold">
-                  {depletedCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              id="tab-fairs-btn"
-              onClick={() => setActiveTab('fairs')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'fairs'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <Tent className="w-3.5 h-3.5 text-amber-600" />
-              <span>Tourism Fairs</span>
-            </button>
-
-            <button
-              id="tab-other-deliveries-btn"
-              onClick={() => setActiveTab('other_deliveries')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'other_deliveries'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <Footprints className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Other Deliveries</span>
-            </button>
-
-            <button
-              id="tab-offices-hub-btn"
-              onClick={() => setActiveTab('offices')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all cursor-pointer ${
-                activeTab === 'offices'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'hover:text-slate-900'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Offices &amp; QR Hub</span>
-            </button>
-          </nav>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Tourism Offices & Contacts Directory Button */}
-            {onOpenOfficesDirectory && (
-              <button
-                id="btn-offices-directory"
-                onClick={onOpenOfficesDirectory}
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-md text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-                title="Manage tourism offices contacts, emails, and address directory"
-              >
-                <Building2 className="w-3.5 h-3.5 text-blue-700" />
-                <span>Offices &amp; Contacts</span>
-              </button>
-            )}
-
-            {/* Email Dispatch Notice Button */}
-            <button
-              id="btn-email-notice"
-              onClick={onOpenEmailModal}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Compose pre-built delivery notice email to a tourism office"
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Email Office</span>
-            </button>
-
+          {/* Header Action Buttons (Fully Adaptive to Screen Width) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Primary Action: New Delivery (Always Visible, adapts label) */}
             <button
               id="btn-new-delivery"
               onClick={onOpenNewDelivery}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Record flyer dispatch to a tourism office"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Record new flyer delivery slip to a tourism office"
             >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Deliver Flyers</span>
+              <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">New Delivery</span>
+              <span className="sm:hidden">Delivery</span>
             </button>
 
+            {/* Desktop Exclusive Direct Buttons (Visible on xl+ >= 1280px) */}
             <button
-              id="btn-add-stock"
+              id="btn-add-stock-xl"
               onClick={onOpenAddStock}
-              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Receive printed batch into warehouse stock"
+              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Record warehouse stock-in batch from litho printer"
             >
-              <PackagePlus className="w-3.5 h-3.5" />
-              <span>Stock In</span>
+              <PackagePlus className="w-3.5 h-3.5 text-blue-400" />
+              <span>Receive Batch</span>
             </button>
 
-            {/* Add New Flyer Button */}
             <button
-              id="btn-add-flyer-nav"
+              id="btn-add-flyer-xl"
               onClick={onOpenAddFlyer}
-              className="hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Add a new flyer material type to stock catalog"
+              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-200 border border-emerald-800/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Add new flyer publication to catalog"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 text-emerald-400" />
               <span>+ Flyer</span>
             </button>
 
-            {/* Upload Excel Stock Button */}
             <button
-              id="btn-upload-excel"
+              id="btn-upload-excel-xl"
               onClick={onOpenUploadExcel}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Upload Excel (.xlsx/.xls/.csv) to import and update flyer stock available"
+              className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Upload Excel spreadsheet to synchronize inventory"
             >
-              <Upload className="w-3.5 h-3.5 text-emerald-700" />
+              <Upload className="w-3.5 h-3.5 text-emerald-400" />
               <span>Upload Excel</span>
             </button>
 
             <button
-              id="btn-export-excel"
+              id="btn-export-excel-xl"
               onClick={handleExport}
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Download real multi-sheet Excel Workbook (.xlsx)"
+              className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Export complete workbook to Excel (.xlsx)"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-amber-400" />
               <span>Export .XLSX</span>
             </button>
 
             <button
+              id="btn-email-notice-xl"
+              onClick={onOpenEmailModal}
+              className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-200 border border-indigo-800/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Compose dispatch notification email to tourism office"
+            >
+              <Mail className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Email Office</span>
+            </button>
+
+            {/* Responsive Excel Dropdown (Visible on md to 2xl) */}
+            <div className="relative hidden md:block 2xl:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExcelMenuOpen(!isExcelMenuOpen);
+                  setIsActionsMenuOpen(false);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Excel import and export operations"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Excel</span>
+                <ChevronDown className="w-3 h-3 text-neutral-400 ml-0.5" />
+              </button>
+
+              {isExcelMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsExcelMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-52 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-fadeIn">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsExcelMenuOpen(false);
+                        onOpenUploadExcel();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4 text-emerald-400" />
+                      <div>
+                        <p className="font-semibold text-white">Upload Excel</p>
+                        <p className="text-[10px] text-neutral-400">Import .xlsx/.csv data file</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsExcelMenuOpen(false);
+                        handleExport();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer border-t border-neutral-800"
+                    >
+                      <Download className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <p className="font-semibold text-white">Export .XLSX Workbook</p>
+                        <p className="text-[10px] text-neutral-400">Download complete dataset</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Responsive Actions Menu (Visible on all screens below xl, or full menu on mobile) */}
+            <div className="relative xl:hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsActionsMenuOpen(!isActionsMenuOpen);
+                  setIsExcelMenuOpen(false);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700/80 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                title="Additional quick operations"
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Actions</span>
+                <ChevronDown className="w-3 h-3 text-neutral-400 ml-0.5" />
+              </button>
+
+              {isActionsMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsActionsMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs animate-fadeIn">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        onOpenAddStock();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                    >
+                      <PackagePlus className="w-4 h-4 text-blue-400 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-white">Receive Batch</p>
+                        <p className="text-[10px] text-neutral-400">Warehouse stock-in entry</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        onOpenAddFlyer();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-white">+ New Flyer</p>
+                        <p className="text-[10px] text-neutral-400">Create new catalog material</p>
+                      </div>
+                    </button>
+
+                    {/* On mobile, also expose Excel options inside actions dropdown */}
+                    <div className="md:hidden border-t border-neutral-800 my-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          onOpenUploadExcel();
+                        }}
+                        className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-white">Upload Excel</p>
+                          <p className="text-[10px] text-neutral-400">Import spreadsheet file</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          handleExport();
+                        }}
+                        className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                      >
+                        <Download className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-white">Export .XLSX</p>
+                          <p className="text-[10px] text-neutral-400">Download complete workbook</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        onOpenEmailModal();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer border-t border-neutral-800"
+                    >
+                      <Mail className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <div>
+                        <p className="font-semibold text-white">Email Office</p>
+                        <p className="text-[10px] text-neutral-400">Pre-formatted dispatch alert</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        onResetDemoData();
+                      }}
+                      className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-400 hover:text-white hover:bg-neutral-800 text-left transition-colors cursor-pointer border-t border-neutral-800"
+                    >
+                      <RotateCcw className="w-4 h-4 text-neutral-400 shrink-0" />
+                      <div>
+                        <p className="font-semibold">Reset Demo Data</p>
+                        <p className="text-[10px] text-neutral-500">Restore default demo catalog</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Quick Reset icon on desktop */}
+            <button
               id="btn-reset-demo"
               onClick={onResetDemoData}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-              title="Reset to initial demo data"
+              className="hidden sm:inline-flex p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+              title="Reset default sample inventory data"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
-            {/* Authenticated User & Security Dropdown */}
+            {/* User Profile & Security Dropdown */}
             {currentUser && (
-              <div className="relative pl-1 border-l border-slate-200 ml-1">
+              <div className="relative pl-1 sm:pl-2 border-l border-neutral-800 ml-1">
                 <button
                   id="btn-user-profile"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center gap-2 p-1 pl-2 pr-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left cursor-pointer"
-                  title="Gestão de Sessão e Segurança"
+                  onClick={() => {
+                    setIsUserMenuOpen(!isUserMenuOpen);
+                    setIsActionsMenuOpen(false);
+                    setIsExcelMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 p-1 pl-1.5 sm:pr-2.5 rounded-lg border border-neutral-800 bg-neutral-900/90 hover:bg-neutral-800 transition-colors text-left cursor-pointer"
+                  title="Session Management & Security"
                 >
                   <div className="w-7 h-7 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs relative">
                     <span>{currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}</span>
-                    <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-white" />
+                    <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-neutral-900" />
                   </div>
-                  <div className="hidden xl:block leading-tight">
-                    <p className="text-xs font-bold text-slate-900 truncate max-w-[120px]">
+                  <div className="hidden lg:block leading-tight">
+                    <p className="text-xs font-bold text-white truncate max-w-[120px]">
                       {currentUser.name || 'AHP Portal'}
                     </p>
-                    <p className="text-[10px] text-slate-500 font-medium">
-                      {currentUser.role === 'admin' ? 'Administrador' : 'Logística'}
+                    <p className="text-[10px] text-neutral-400 font-medium">
+                      {currentUser.role === 'admin' ? 'Administrator' : 'Logistics Operator'}
                     </p>
                   </div>
                 </button>
 
-                {/* Dropdown Card */}
+                {/* Dropdown Menu Card */}
                 {isUserMenuOpen && (
                   <>
                     <div
                       className="fixed inset-0 z-40"
                       onClick={() => setIsUserMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 py-2.5 z-50 text-xs animate-fadeIn">
-                      <div className="px-3.5 py-2 border-b border-slate-100">
+                    <div className="absolute right-0 mt-2 w-72 bg-neutral-900 rounded-xl shadow-2xl border border-neutral-700/90 py-2.5 z-50 text-xs animate-fadeIn text-neutral-200">
+                      <div className="px-3.5 py-2.5 border-b border-neutral-800">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900">{currentUser.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {currentUser.role === 'admin' ? 'ADMIN' : 'OPERADOR'}
+                          <span className="font-bold text-white">{currentUser.name}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            {currentUser.role === 'admin' ? 'ADMIN' : 'OPERATOR'}
                           </span>
                         </div>
-                        <p className="text-slate-500 text-[11px] font-mono mt-0.5">{currentUser.email}</p>
-                        <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-200/60">
-                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                          <span>Software Privado AHP &bull; Não Open Source</span>
+                        <p className="text-neutral-400 text-[11px] font-mono mt-0.5">{currentUser.email}</p>
+
+                        <div className="mt-2.5 p-2 rounded-lg bg-neutral-950 border border-neutral-800 flex items-center gap-2">
+                          <AHPCasteloIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div className="leading-tight">
+                            <p className="text-[10px] font-bold text-white">Aldeias Históricas de Portugal</p>
+                            <p className="text-[9px] text-neutral-400">Private Enterprise Software &bull; Not Open Source</p>
+                          </div>
                         </div>
                       </div>
 
@@ -360,12 +459,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                               setIsUserMenuOpen(false);
                               onOpenChangePassword();
                             }}
-                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-slate-700 hover:bg-slate-50 text-left cursor-pointer transition-colors"
+                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
                           >
-                            <KeyRound className="w-4 h-4 text-slate-500" />
+                            <KeyRound className="w-4 h-4 text-emerald-400" />
                             <div>
-                              <p className="font-medium text-slate-800">Alterar Palavra-passe</p>
-                              <p className="text-[10px] text-slate-400">Atualizar credencial de acesso</p>
+                              <p className="font-medium text-white">Change Password</p>
+                              <p className="text-[10px] text-neutral-400">Update account credentials</p>
                             </div>
                           </button>
                         )}
@@ -377,12 +476,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                               setIsUserMenuOpen(false);
                               onLogout();
                             }}
-                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-red-700 hover:bg-red-50 text-left cursor-pointer transition-colors border-t border-slate-100 mt-1"
+                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-red-400 hover:bg-red-950/60 text-left cursor-pointer transition-colors border-t border-neutral-800 mt-1"
                           >
-                            <LogOut className="w-4 h-4 text-red-600" />
+                            <LogOut className="w-4 h-4 text-red-400" />
                             <div>
-                              <p className="font-semibold text-red-700">Terminar Sessão</p>
-                              <p className="text-[10px] text-red-500/80">Bloquear e voltar à página de entrada</p>
+                              <p className="font-semibold text-red-300">Sign Out</p>
+                              <p className="text-[10px] text-red-400/80">Lock workstation and return to login</p>
                             </div>
                           </button>
                         )}
@@ -394,75 +493,103 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
         </div>
+      </div>
 
-        {/* Mobile & Tablet Tab Navigation Bar */}
-        <div className="flex lg:hidden overflow-x-auto py-2 border-t border-slate-100 gap-1.5 text-xs">
+      {/* Secondary Navigation Tabs Bar (Scrolls seamlessly on small screens, stretches cleanly on desktop) */}
+      <div className="border-t border-neutral-800/80 bg-neutral-950/95 backdrop-blur-md px-2 sm:px-4 lg:px-8">
+        <div className="max-w-7xl mx-auto flex items-center overflow-x-auto py-1.5 gap-1 text-xs scrollbar-none">
           <button
+            id="tab-dashboard-btn"
             onClick={() => setActiveTab('dashboard')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'dashboard' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'dashboard'
+                ? 'bg-neutral-100 text-neutral-950 font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Dashboard
+            <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+            <span>Overview</span>
           </button>
+
           <button
+            id="tab-spreadsheet-btn"
             onClick={() => setActiveTab('spreadsheet')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'spreadsheet' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'spreadsheet'
+                ? 'bg-neutral-100 text-neutral-950 font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Excel Sheet
+            <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+            <span>Warehouse Stock</span>
           </button>
+
           <button
+            id="tab-depletion-btn"
             onClick={() => setActiveTab('depletion')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'depletion' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'depletion'
+                ? 'bg-neutral-100 text-neutral-950 font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Time Lapse ({depletedCount})
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span>Time Lapse &amp; Stockouts</span>
+            {depletedCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 animate-pulse">
+                {depletedCount}
+              </span>
+            )}
           </button>
+
           <button
+            id="tab-fairs-btn"
             onClick={() => setActiveTab('fairs')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'fairs' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'fairs'
+                ? 'bg-neutral-100 text-neutral-950 font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Tourism Fairs
+            <Tent className="w-3.5 h-3.5 shrink-0" />
+            <span>Tourism Fairs</span>
           </button>
+
           <button
+            id="tab-other-deliveries-btn"
             onClick={() => setActiveTab('other_deliveries')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'other_deliveries' ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'other_deliveries'
+                ? 'bg-neutral-100 text-neutral-950 font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Other Deliveries
+            <Footprints className="w-3.5 h-3.5 shrink-0" />
+            <span>Other Dispatches</span>
           </button>
+
           <button
+            id="tab-offices-btn"
             onClick={() => setActiveTab('offices')}
-            className={`px-2.5 py-1 rounded whitespace-nowrap font-medium ${
-              activeTab === 'offices' ? 'bg-emerald-800 text-white font-semibold' : 'bg-slate-100 text-slate-700'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'offices'
+                ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            Offices &amp; QR Hub
+            <QrCode className="w-3.5 h-3.5 shrink-0" />
+            <span>Offices &amp; QR Hub</span>
           </button>
+
           {onOpenOfficesDirectory && (
             <button
               onClick={onOpenOfficesDirectory}
-              className="px-2.5 py-1 rounded whitespace-nowrap font-medium bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer text-neutral-400 hover:text-white hover:bg-neutral-900 ml-auto"
+              title="Open verified directory and contact information for the 12 tourism offices"
             >
-              <Building2 className="w-3 h-3 text-blue-600" />
-              <span>Offices &amp; Contacts</span>
-            </button>
-          )}
-
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="px-2.5 py-1 rounded whitespace-nowrap font-medium bg-red-50 text-red-700 border border-red-200 flex items-center gap-1 ml-auto"
-              title="Terminar Sessão"
-            >
-              <LogOut className="w-3 h-3 text-red-600" />
-              <span>Sair</span>
+              <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="hidden sm:inline">Offices Directory</span>
+              <span className="sm:hidden">Directory</span>
             </button>
           )}
         </div>
@@ -470,4 +597,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
-

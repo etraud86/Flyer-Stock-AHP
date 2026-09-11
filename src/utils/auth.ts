@@ -198,7 +198,7 @@ export function authenticate(emailInput: string, passwordInput: string, remember
     const remainingSeconds = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
     return {
       success: false,
-      error: `Acesso temporariamente bloqueado devido a múltiplas tentativas falhadas. Aguarde ${remainingSeconds} segundos antes de tentar novamente.`,
+      error: `Access temporarily locked due to multiple failed attempts. Please wait ${remainingSeconds} seconds before trying again.`,
       lockedUntil: attempts.lockedUntil,
       remainingSeconds,
     };
@@ -214,7 +214,7 @@ export function authenticate(emailInput: string, passwordInput: string, remember
     const attemptResult = recordFailedAttempt();
     return {
       success: false,
-      error: 'Utilizador ou palavra-passe incorretos. Verifique os dados introduzidos.',
+      error: 'Invalid username or password. Please verify the entered credentials.',
       ...attemptResult,
     };
   }
@@ -227,7 +227,7 @@ export function authenticate(emailInput: string, passwordInput: string, remember
     const attemptResult = recordFailedAttempt();
     return {
       success: false,
-      error: 'Palavra-passe incorreta. Por razões de segurança, este acesso é monitorizado.',
+      error: 'Incorrect password. For security compliance, authentication attempts are logged.',
       ...attemptResult,
     };
   }
@@ -270,14 +270,14 @@ export function updateAccountPassword(
   newPassword: string
 ): { success: boolean; error?: string } {
   if (!newPassword || newPassword.length < 6) {
-    return { success: false, error: 'A nova palavra-passe deve conter pelo menos 6 caracteres.' };
+    return { success: false, error: 'New password must contain at least 6 characters.' };
   }
 
   const accounts = getStoredAccounts();
   const user = accounts.find((u) => u.id === userId);
 
   if (!user) {
-    return { success: false, error: 'Conta de utilizador não encontrada.' };
+    return { success: false, error: 'User account not found.' };
   }
 
   const currentHash = hashPassword(currentPassword);
@@ -286,7 +286,7 @@ export function updateAccountPassword(
     (user.alternatePasswordHash && user.alternatePasswordHash === currentHash);
 
   if (!isValid) {
-    return { success: false, error: 'A palavra-passe atual indicada está incorreta.' };
+    return { success: false, error: 'The current password provided is incorrect.' };
   }
 
   user.passwordHash = hashPassword(newPassword);

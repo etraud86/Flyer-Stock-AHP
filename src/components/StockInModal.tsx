@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, PackagePlus, Check } from 'lucide-react';
 import { FlyerType, StockInBatch } from '../types';
 import { TODAY_STR } from '../utils/calculations';
+import { AHPCasteloIcon } from './AHPLogo';
 
 interface StockInModalProps {
   isOpen: boolean;
@@ -53,23 +54,23 @@ export const StockInModal: React.FC<StockInModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
       <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-              <PackagePlus className="w-4 h-4" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 bg-neutral-950 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-neutral-900 border border-neutral-700/80 text-white flex items-center justify-center p-1.5 shadow-xs">
+              <AHPCasteloIcon className="w-full h-full text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">
-                Receive Stock Batch into Warehouse
+              <h3 className="font-bold text-white text-sm">
+                Receive New Stock Batch into Warehouse
               </h3>
-              <p className="text-xs text-slate-500">
-                Replenish promotional flyer inventory from print suppliers
+              <p className="text-xs text-neutral-400">
+                Historical Villages of Portugal &bull; Inventory replenishment from print suppliers
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors cursor-pointer"
+            className="text-neutral-400 hover:text-white p-1 rounded-md transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

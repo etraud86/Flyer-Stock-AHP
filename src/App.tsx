@@ -18,6 +18,7 @@ import { EditFlyerStockModal } from './components/EditFlyerStockModal';
 import { OfficeContactsModal } from './components/OfficeContactsModal';
 import { EnterLoginPage } from './components/EnterLoginPage';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { Footer } from './components/Footer';
 import { applyTargetStockToBatches, getFlyerTotalDispatched } from './utils/stockAdjustment';
 import { getCurrentSession, clearSession } from './utils/auth';
 
@@ -586,14 +587,14 @@ export default function App() {
       <EnterLoginPage
         onLoginSuccess={(newSession) => {
           setSession(newSession);
-          showToast(`Bem-vindo, ${newSession.user.name}! Sessão iniciada com segurança.`);
+          showToast(`Welcome, ${newSession.user.name}! Secure session started.`);
         }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-100/70 text-slate-900 font-sans flex flex-col justify-between">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -629,7 +630,7 @@ export default function App() {
       />
 
       {/* Main View Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-1 w-full pb-10">
         {activeTab === 'dashboard' && (
           <DashboardView
             flyers={flyers}
@@ -740,6 +741,16 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Black Base Institutional Footer with Official Castle Logo & Metrics */}
+      <Footer
+        currentUser={session.user}
+        onLogout={handleLogout}
+        onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+        flyers={flyers}
+        offices={offices}
+        deliveries={deliveries}
+      />
 
       {/* Modals */}
       <DeliveryModal
@@ -885,7 +896,7 @@ export default function App() {
           isOpen={isChangePasswordModalOpen}
           onClose={() => setIsChangePasswordModalOpen(false)}
           onSuccess={() => {
-            showToast('Palavra-passe atualizada com sucesso!');
+            showToast('Password updated successfully!');
           }}
         />
       )}

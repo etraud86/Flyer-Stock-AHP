@@ -17,6 +17,7 @@ import {
   Send,
 } from 'lucide-react';
 import { TourismOffice } from '../types';
+import { AHPCasteloIcon } from './AHPLogo';
 
 interface OfficeContactsModalProps {
   isOpen: boolean;
@@ -128,15 +129,20 @@ export const OfficeContactsModal: React.FC<OfficeContactsModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-900 text-white shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-800 bg-neutral-950 text-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Building2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-700/80 flex items-center justify-center p-2 text-white shadow-xs">
+              <AHPCasteloIcon className="w-full h-full text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">Tourism Offices &amp; Contact Directory</h3>
-              <p className="text-xs text-slate-300">
-                Manage destination contacts, verified email addresses, phone numbers, and delivery addresses
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base text-white">Tourism Offices &bull; Contact Directory</h3>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-800 text-neutral-300 border border-neutral-700">
+                  12 Destinations
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400">
+                Verified contacts, delivery slip emails, phone numbers, and official addresses across the AHP network
               </p>
             </div>
           </div>

@@ -2,32 +2,48 @@ import React from 'react';
 
 interface AHPLogoProps {
   className?: string;
-  variant?: 'full' | 'compact' | 'crest';
+  variant?: 'full' | 'compact' | 'crest' | 'symbol';
   inverted?: boolean;
 }
 
-// Exact Fortress Crest Vector Path from the Official Brand Identity of Aldeias Históricas de Portugal
-const OFFICIAL_CREST_PATH =
-  'M267 748 c-8 -24 -67 -191 -130 -373 -63 -181 -118 -338 -122 -347 -7 -17 5 -18 167 -18 l174 0 26 78 c43 126 198 555 202 560 2 2 10 -14 16 -35 11 -34 39 -113 176 -495 l39 -108 172 0 172 0 -29 82 c-15 46 -63 182 -105 303 -42 121 -91 259 -107 308 -27 80 -32 87 -56 87 -26 0 -27 -2 -27 -62 l0 -62 -32 -2 -33 -2 0 64 0 64 -40 0 -40 0 0 -63 0 -63 -30 0 c-16 0 -31 3 -31 8 -1 4 -2 32 -3 61 l-1 52 -40 0 -40 0 0 -61 0 -60 -32 -1 c-18 -1 -33 2 -34 5 -1 4 -2 32 -3 62 l-1 55 -37 3 -38 3 0 -64 c0 -69 3 -67 -62 -58 -5 1 -8 28 -8 61 0 57 -1 60 -24 60 -19 0 -27 -8 -39 -42z';
+// Exact Fortress Crest Vector from the Official Brand Identity (CASTELO-01) of Aldeias Históricas de Portugal
+export const CASTELO_SVG_PATH =
+  'M 155,60 L 188,60 L 188,122 L 220,122 L 220,60 L 252,60 L 252,122 L 284,122 L 284,60 L 316,60 L 316,122 L 348,122 L 348,60 L 380,60 L 380,122 L 412,122 L 412,60 L 445,60 L 548,420 L 395,420 L 300,122 L 205,420 L 52,420 Z';
+
+/**
+ * Standalone Official Castle Symbol of Aldeias Históricas de Portugal (CASTELO-01)
+ */
+export const AHPCasteloIcon: React.FC<{ className?: string; fill?: string }> = ({
+  className = 'w-6 h-6',
+  fill = 'currentColor',
+}) => (
+  <svg
+    viewBox="0 0 600 480"
+    className={className}
+    fill={fill}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-label="Aldeias Históricas de Portugal - Castelo"
+  >
+    <path d={CASTELO_SVG_PATH} />
+  </svg>
+);
 
 export const AHPLogo: React.FC<AHPLogoProps> = ({
   className = 'h-16 w-auto',
   variant = 'full',
   inverted = false,
 }) => {
-  // If only the fortress crest watermark is requested
-  if (variant === 'crest') {
+  // If only the fortress crest / castle symbol is requested
+  if (variant === 'crest' || variant === 'symbol') {
     return (
       <svg
-        viewBox="0 0 105 80"
+        viewBox="0 0 600 480"
         className={className}
         fill="currentColor"
         xmlns="http://www.w3.org/2000/svg"
         aria-label="Aldeias Históricas de Portugal Crest"
       >
-        <g transform="translate(0, 80) scale(0.1, -0.1)" stroke="none">
-          <path d={OFFICIAL_CREST_PATH} />
-        </g>
+        <path d={CASTELO_SVG_PATH} />
       </svg>
     );
   }
@@ -57,3 +73,4 @@ export const AHPLogo: React.FC<AHPLogoProps> = ({
     />
   );
 };
+
