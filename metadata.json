@@ -1,0 +1,8 @@
+{
+  "name": "Flyer Stock AHP",
+  "description": "Interactive spreadsheet and logistics dashboard for stocking promotional flyers, tracking circuit & non-circuit deliveries, direct ledger editing, tourism office QR code delivery confirmation, and printable official archive slips.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
