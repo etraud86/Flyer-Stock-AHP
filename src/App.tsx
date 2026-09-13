@@ -18,7 +18,7 @@ import { AddFlyerModal } from './components/AddFlyerModal';
 import { EditFlyerStockModal } from './components/EditFlyerStockModal';
 import { OfficeContactsModal } from './components/OfficeContactsModal';
 import { EnterLoginPage } from './components/EnterLoginPage';
-import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { UserManagementModal } from './components/UserManagementModal';
 import { Footer } from './components/Footer';
 import { applyTargetStockToBatches, getFlyerTotalDispatched } from './utils/stockAdjustment';
 import { getCurrentSession, clearSession } from './utils/auth';
@@ -133,7 +133,13 @@ export default function App() {
 
   // Safe Authentication Session State (Enterprise Private Portal - Not Open Source)
   const [session, setSession] = useState<AuthSession | null>(() => getCurrentSession());
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState(false);
+  const [userModalTab, setUserModalTab] = useState<'change_password' | 'register_user' | 'users_list'>('change_password');
+
+  const handleOpenUserManagement = (tab: 'change_password' | 'register_user' | 'users_list' = 'change_password') => {
+    setUserModalTab(tab);
+    setIsUserManagementModalOpen(true);
+  };
 
   // Mobile QR Code Auto-Validation State (triggered when scanned on mobile phone)
   const [mobileValidationOffice, setMobileValidationOffice] = useState<{
@@ -157,7 +163,7 @@ export default function App() {
   const handleLogout = () => {
     clearSession();
     setSession(null);
-    showToast('Sessão terminada. Acesso seguro bloqueado.');
+    showToast('Session ended. Workstation locked.');
   };
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -634,10 +640,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900 font-sans flex flex-col justify-between">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-5 right-5 z-50 bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200">
           <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -657,7 +663,8 @@ export default function App() {
         onResetDemoData={handleResetDemoData}
         currentUser={session.user}
         onLogout={handleLogout}
-        onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
+        onOpenUserManagement={handleOpenUserManagement}
         flyers={flyers}
         offices={offices}
         deliveries={deliveries}
@@ -786,7 +793,7 @@ export default function App() {
       <Footer
         currentUser={session.user}
         onLogout={handleLogout}
-        onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
         flyers={flyers}
         offices={offices}
         deliveries={deliveries}
@@ -926,18 +933,24 @@ export default function App() {
             const fl = flyers.find((f) => f.id === del.flyerTypeId) || flyers[0];
             handleOpenPrintSlip(del, scannerOffice, fl);
           }}
+          onOpenMobileView={(code, id) => {
+            setIsScannerOpen(false);
+            setScannerOffice(null);
+            setMobileValidationOffice({ code, id });
+          }}
         />
       )}
 
-      {/* Change Password Modal */}
+      {/* User Accounts & Password Security Administration Modal */}
       {session && (
-        <ChangePasswordModal
-          user={session.user}
-          isOpen={isChangePasswordModalOpen}
-          onClose={() => setIsChangePasswordModalOpen(false)}
-          onSuccess={() => {
-            showToast('Password updated successfully!');
+        <UserManagementModal
+          currentUser={session.user}
+          isOpen={isUserManagementModalOpen}
+          onClose={() => setIsUserManagementModalOpen(false)}
+          onSuccessToast={(msg) => {
+            showToast(msg);
           }}
+          initialTab={userModalTab}
         />
       )}
     </div>

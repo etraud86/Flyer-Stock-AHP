@@ -20,13 +20,27 @@ export interface QRCodeDeliveryPayload {
  * pending deliveries for that office.
  */
 export function getOfficePermanentQRUrl(officeCode: string, officeId: string): string {
-  let origin = 'https://flyerstock.ahp.pt';
+  // Public live Cloud Run host for physical mobile camera scanning
+  const CLOUD_RUN_ORIGIN = 'https://ais-dev-z6dza4olbxnpdv5jsg4roc-413909422609.europe-west2.run.app';
+  let origin = CLOUD_RUN_ORIGIN;
   let pathname = '/';
+
   if (typeof window !== 'undefined' && window.location) {
-    origin = window.location.origin;
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.includes('.local');
+
+    if (!isLocal && window.location.origin && !window.location.origin.startsWith('null')) {
+      origin = window.location.origin;
+    }
     pathname = window.location.pathname || '/';
   }
-  return `${origin}${pathname}?officeValidate=${encodeURIComponent(officeCode)}&officeId=${encodeURIComponent(officeId)}`;
+
+  const encodedCode = encodeURIComponent(officeCode);
+  const encodedId = encodeURIComponent(officeId);
+  // Include both query parameter and hash so it works across any server rewrite or SPA client routing
+  return `${origin}${pathname}?officeValidate=${encodedCode}&officeId=${encodedId}#officeValidate=${encodedCode}`;
 }
 
 // In-memory cache for permanent office QR codes so they are instant

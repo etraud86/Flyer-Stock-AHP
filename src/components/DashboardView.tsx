@@ -111,19 +111,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Page Title & Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-white tracking-tight">
             Distribution &amp; Stock Depletion Dashboard
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-neutral-400 mt-0.5">
             Monitor flyer inventory, batch deliveries per tourism office, and depletion period until stockout.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigateToTab('spreadsheet')}
-            className="text-xs font-semibold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors cursor-pointer flex items-center gap-1.5"
+            className="text-xs font-semibold px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 rounded-md transition-colors cursor-pointer flex items-center gap-1.5"
           >
             <span>Open in Excel Grid</span>
             <ArrowUpRight className="w-3.5 h-3.5" />

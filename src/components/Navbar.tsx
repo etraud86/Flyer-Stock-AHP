@@ -19,6 +19,8 @@ import {
   KeyRound,
   ShieldCheck,
   User,
+  UserPlus,
+  Users,
   ChevronDown,
   Layers,
   Sparkles,
@@ -52,6 +54,7 @@ interface NavbarProps {
   currentUser?: AuthUser | null;
   onLogout?: () => void;
   onOpenChangePassword?: () => void;
+  onOpenUserManagement?: (tab?: 'change_password' | 'register_user' | 'users_list') => void;
   flyers: FlyerType[];
   offices: TourismOffice[];
   deliveries: DeliveryRecord[];
@@ -77,6 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onLogout,
   onOpenChangePassword,
+  onOpenUserManagement,
   flyers,
   offices,
   deliveries,
@@ -452,22 +456,58 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
 
                       <div className="py-1">
-                        {onOpenChangePassword && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            if (onOpenUserManagement) {
+                              onOpenUserManagement('change_password');
+                            } else if (onOpenChangePassword) {
                               onOpenChangePassword();
-                            }}
-                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
-                          >
-                            <KeyRound className="w-4 h-4 text-emerald-400" />
-                            <div>
-                              <p className="font-medium text-white">Change Password</p>
-                              <p className="text-[10px] text-neutral-400">Update account credentials</p>
-                            </div>
-                          </button>
-                        )}
+                            }
+                          }}
+                          className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
+                        >
+                          <KeyRound className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div>
+                            <p className="font-medium text-white">Change Password</p>
+                            <p className="text-[10px] text-neutral-400">Update account credentials</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            if (onOpenUserManagement) {
+                              onOpenUserManagement('register_user');
+                            }
+                          }}
+                          className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
+                        >
+                          <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
+                          <div>
+                            <p className="font-medium text-white">Register More Users</p>
+                            <p className="text-[10px] text-neutral-400">Add operators &amp; configure 2FA login</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            if (onOpenUserManagement) {
+                              onOpenUserManagement('users_list');
+                            }
+                          }}
+                          className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
+                        >
+                          <Users className="w-4 h-4 text-indigo-400 shrink-0" />
+                          <div>
+                            <p className="font-medium text-white">Manage Users Directory</p>
+                            <p className="text-[10px] text-neutral-400">View accounts &amp; reset passwords</p>
+                          </div>
+                        </button>
 
                         {onLogout && (
                           <button
