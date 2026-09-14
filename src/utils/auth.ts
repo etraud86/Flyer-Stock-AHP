@@ -245,22 +245,20 @@ export interface LoginResult {
 }
 
 /**
- * Step 1 of Two-Factor Authentication:
- * Checks email and password. If valid, generates a 6-digit verification code
- * dispatched to the user's email, and saves a pending 2FA challenge.
+ * Direct Login:
+ * Authenticates user credentials and immediately returns an active session without 2FA.
  */
-export function initiateTwoFactorLogin(
+export function loginUser(
   emailInput: string,
   passwordInput: string,
-  rememberMe: boolean
-): LoginResult {
+  rememberMe: boolean = true
+): { success: boolean; session?: AuthSession; error?: string; remainingSeconds?: number } {
   const attempts = getFailedAttemptsInfo();
   if (attempts.lockedUntil > Date.now()) {
     const remainingSeconds = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
     return {
       success: false,
       error: `Access temporarily locked due to multiple failed attempts. Please wait ${remainingSeconds} seconds before trying again.`,
-      lockedUntil: attempts.lockedUntil,
       remainingSeconds,
     };
   }
@@ -275,8 +273,8 @@ export function initiateTwoFactorLogin(
     const attemptResult = recordFailedAttempt();
     return {
       success: false,
-      error: 'Invalid username or password. Please verify the entered credentials.',
-      ...attemptResult,
+      error: 'Invalid email or password. Please verify the entered credentials.',
+      remainingSeconds: attemptResult.remainingSeconds,
     };
   }
 
@@ -288,31 +286,92 @@ export function initiateTwoFactorLogin(
     const attemptResult = recordFailedAttempt();
     return {
       success: false,
-      error: 'Incorrect password. For security compliance, authentication attempts are logged.',
-      ...attemptResult,
+      error: 'Incorrect password. Please verify your password.',
+      remainingSeconds: attemptResult.remainingSeconds,
     };
   }
 
-  // Credentials are valid! Generate 6-digit 2FA code
-  const code = generate6DigitCode();
-  const challenge: TwoFactorChallenge = {
+  // Credentials are valid! Create session immediately
+  resetFailedAttempts();
+
+  const nowIso = new Date().toISOString();
+  matchedUser.lastLogin = nowIso;
+  saveStoredAccounts(accounts);
+
+  const authUser: AuthUser = {
+    id: matchedUser.id,
     email: matchedUser.email,
-    userId: matchedUser.id,
-    userName: matchedUser.name,
-    code,
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-    rememberMe,
-    sentTimestamp: new Date().toISOString(),
+    name: matchedUser.name,
+    role: matchedUser.role,
   };
 
-  saveTwoFactorChallenge(challenge);
+  const sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000;
+  const newSession: AuthSession = {
+    user: authUser,
+    token: `ahp_sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    expiresAt: Date.now() + sessionDuration,
+    rememberMe,
+  };
+
+  saveSession(newSession);
 
   return {
     success: true,
-    requires2FA: true,
-    twoFactorEmail: matchedUser.email,
-    twoFactorUserName: matchedUser.name,
-    simulatedCode: code,
+    session: newSession,
+  };
+}
+
+/**
+ * Direct Password Reset:
+ * Resets user password directly by entering their registered email and new password.
+ */
+export function directResetPassword(
+  emailInput: string,
+  newPasswordInput: string
+): { success: boolean; error?: string } {
+  const cleanEmail = emailInput.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid institutional email address.' };
+  }
+
+  if (!newPasswordInput || newPasswordInput.length < 6) {
+    return { success: false, error: 'New password must contain at least 6 characters.' };
+  }
+
+  const accounts = getStoredAccounts();
+  const user = accounts.find((u) => u.email.toLowerCase() === cleanEmail);
+  if (!user) {
+    return { success: false, error: 'No registered user found with this email address.' };
+  }
+
+  user.passwordHash = hashPassword(newPasswordInput);
+  user.alternatePasswordHash = undefined;
+  saveStoredAccounts(accounts);
+  localStorage.removeItem(STORAGE_KEYS.FAILED_ATTEMPTS);
+
+  return { success: true };
+}
+
+/**
+ * Legacy wrapper: Step 1 of Login (now direct)
+ */
+export function initiateTwoFactorLogin(
+  emailInput: string,
+  passwordInput: string,
+  rememberMe: boolean
+): LoginResult {
+  const res = loginUser(emailInput, passwordInput, rememberMe);
+  if (res.success && res.session) {
+    return {
+      success: true,
+      session: res.session,
+      requires2FA: false,
+    };
+  }
+  return {
+    success: false,
+    error: res.error,
+    remainingSeconds: res.remainingSeconds,
   };
 }
 

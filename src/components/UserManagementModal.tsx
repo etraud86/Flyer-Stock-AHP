@@ -359,7 +359,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 <div>
                   <p className="font-bold text-white">Create New Institutional Account</p>
                   <p className="mt-0.5 text-neutral-400">
-                    Registered users will be protected by 2-Factor Authentication via their email on login.
+                    Registered users can immediately access the workstation with their assigned credentials.
                   </p>
                 </div>
               </div>
@@ -399,7 +399,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               {/* Institutional Email */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Institutional Email (For 2FA Security Codes) *
+                  Institutional Email *
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />

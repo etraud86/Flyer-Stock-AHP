@@ -23,7 +23,6 @@ export function getOfficePermanentQRUrl(officeCode: string, officeId: string): s
   // Public live Cloud Run host for physical mobile camera scanning
   const CLOUD_RUN_ORIGIN = 'https://ais-dev-z6dza4olbxnpdv5jsg4roc-413909422609.europe-west2.run.app';
   let origin = CLOUD_RUN_ORIGIN;
-  let pathname = '/';
 
   if (typeof window !== 'undefined' && window.location) {
     const isLocal =
@@ -34,13 +33,12 @@ export function getOfficePermanentQRUrl(officeCode: string, officeId: string): s
     if (!isLocal && window.location.origin && !window.location.origin.startsWith('null')) {
       origin = window.location.origin;
     }
-    pathname = window.location.pathname || '/';
   }
 
   const encodedCode = encodeURIComponent(officeCode);
   const encodedId = encodeURIComponent(officeId);
-  // Include both query parameter and hash so it works across any server rewrite or SPA client routing
-  return `${origin}${pathname}?officeValidate=${encodedCode}&officeId=${encodedId}#officeValidate=${encodedCode}`;
+  // Uses /qr-auto-confirm so mobile camera scan confirms on the server immediately
+  return `${origin}/qr-auto-confirm?officeCode=${encodedCode}&officeId=${encodedId}`;
 }
 
 // In-memory cache for permanent office QR codes so they are instant

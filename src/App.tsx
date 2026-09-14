@@ -232,6 +232,114 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
   }, [otherDeliveries]);
 
+  // Keep server synchronized with the current deliveries list for cross-device visibility
+  useEffect(() => {
+    if (deliveries && deliveries.length > 0) {
+      fetch('/api/qr/sync-deliveries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveries }),
+      }).catch(() => {});
+    }
+  }, [deliveries]);
+
+  // -------------------------------------------------------------
+  // REAL-TIME CROSS-DEVICE QR CONFIRMATION SYNC
+  // -------------------------------------------------------------
+  useEffect(() => {
+    // 1. Cross-tab BroadcastChannel listener for zero-latency local updates
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel('ahp_qr_sync_channel');
+        bc.onmessage = (event) => {
+          const data = event.data;
+          if (data && data.type === 'OFFICE_CONFIRMED_AUTOMATICALLY') {
+            handleRealTimeOfficeConfirmation(data.officeCode, data.officeId, data.confirmedBy, data.officeName);
+          }
+        };
+      }
+    } catch (e) {}
+
+    // 2. Cross-device Server Polling: Polls /api/qr/sync every 1500ms
+    // This immediately captures smartphone camera scans from external mobile devices!
+    let isCancelled = false;
+    let lastProcessedTime = Date.now() - 10000;
+
+    const pollServerSync = async () => {
+      try {
+        const res = await fetch(`/api/qr/sync?since=${lastProcessedTime}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (isCancelled || !json.success) return;
+
+        if (Array.isArray(json.events) && json.events.length > 0) {
+          json.events.forEach((evt: any) => {
+            handleRealTimeOfficeConfirmation(evt.officeCode, evt.officeId, evt.confirmedBy);
+          });
+          lastProcessedTime = json.serverTime || Date.now();
+        }
+      } catch (err) {
+        // Dev server or offline, ignore silently
+      }
+    };
+
+    const interval = setInterval(pollServerSync, 1500);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+      if (bc) bc.close();
+    };
+  }, [offices]);
+
+  const handleRealTimeOfficeConfirmation = (
+    officeCode: string,
+    officeId?: string,
+    confirmedBy?: string,
+    officeName?: string
+  ) => {
+    const cleanCode = (officeCode || '').toUpperCase();
+    const targetOffice = offices.find(
+      (o) => (cleanCode && o.code.toUpperCase() === cleanCode) || (officeId && o.id === officeId)
+    );
+    const resolvedOfficeId = targetOffice?.id || officeId;
+    const resolvedName = targetOffice?.name || officeName || cleanCode || 'Tourism Office';
+    const staff = confirmedBy || `${resolvedName} Reception Staff`;
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    let updatedCount = 0;
+
+    setDeliveries((prev) => {
+      const updated = prev.map((d) => {
+        const matches =
+          (resolvedOfficeId && d.officeId === resolvedOfficeId) ||
+          (targetOffice && d.officeId === targetOffice.id);
+
+        if (matches && d.confirmationStatus !== 'confirmed') {
+          updatedCount++;
+          const sigCode = `VERIFIED-AHP-${d.deliveryRef.replace(/[^A-Z0-9]/gi, '')}-${Math.floor(
+            1000 + Math.random() * 9000
+          )}`;
+          return {
+            ...d,
+            confirmationStatus: 'confirmed' as const,
+            confirmedAt: nowStr,
+            confirmedBy: staff,
+            confirmationSignatureCode: sigCode,
+          };
+        }
+        return d;
+      });
+
+      return updated;
+    });
+
+    if (updatedCount > 0) {
+      showToast(`✓ QR Scan: ${updatedCount} delivery for ${resolvedName} confirmed in real time!`);
+    }
+  };
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -342,6 +450,11 @@ export default function App() {
         return d;
       })
     );
+    fetch('/api/qr/confirm-delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deliveryId, confirmedBy }),
+    }).catch(() => {});
     showToast(`Receipt confirmed via QR Code by ${confirmedBy}!`);
   };
 

@@ -124,6 +124,39 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
       onConfirmDelivery(newDel.id, defaultStaff);
     }
 
+    // 1. Sync immediately with the central server API so the desktop platform updates across devices
+    fetch('/api/qr/confirm-office', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        officeCode: targetOffice.code,
+        officeId: targetOffice.id,
+        confirmedBy: defaultStaff,
+        deliveryId: targetDel?.id,
+      }),
+    }).catch((err) => {
+      console.warn('Could not reach central sync API, relying on local sync:', err);
+    });
+
+    // 2. Broadcast immediately to any open tabs/windows on the device
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const bc = new BroadcastChannel('ahp_qr_sync_channel');
+        bc.postMessage({
+          type: 'OFFICE_CONFIRMED_AUTOMATICALLY',
+          officeCode: targetOffice.code,
+          officeId: targetOffice.id,
+          officeName: targetOffice.name,
+          confirmedBy: defaultStaff,
+          confirmedAt: confirmedTimestamp,
+          deliveryId: targetDel?.id,
+        });
+        bc.close();
+      }
+    } catch (e) {
+      // Ignore broadcast errors in private browsing
+    }
+
     setHasConfirmed(true);
 
     // Haptic vibration & chime on smartphone

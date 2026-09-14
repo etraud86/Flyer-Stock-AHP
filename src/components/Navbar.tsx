@@ -488,7 +488,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
                           <div>
                             <p className="font-medium text-white">Register More Users</p>
-                            <p className="text-[10px] text-neutral-400">Add operators &amp; configure 2FA login</p>
+                            <p className="text-[10px] text-neutral-400">Add operators &amp; manage workstation access</p>
                           </div>
                         </button>
 

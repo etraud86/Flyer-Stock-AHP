@@ -46,11 +46,12 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
   onOpenPrintSlip,
   onOpenMobileView,
 }) => {
-  // Find pending deliveries for this office
-  const pendingDeliveries = allDeliveries.filter(
+  // Find deliveries for this specific office
+  const officeDeliveries = allDeliveries.filter((d) => d.officeId === office.id);
+  const pendingDeliveries = officeDeliveries.filter(
     (d) => d.confirmationStatus !== 'confirmed'
   );
-  const defaultDeliveryId = pendingDeliveries[0]?.id || allDeliveries[0]?.id || '';
+  const defaultDeliveryId = pendingDeliveries[0]?.id || officeDeliveries[0]?.id || '';
 
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>(defaultDeliveryId);
   const [staffName, setStaffName] = useState<string>(
@@ -68,7 +69,7 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
   useEffect(() => {
     if (!isOpen || !office) return;
 
-    setSelectedDeliveryId(pendingDeliveries[0]?.id || allDeliveries[0]?.id || '');
+    setSelectedDeliveryId(pendingDeliveries[0]?.id || officeDeliveries[0]?.id || '');
     setStaffName(office.contactPerson || `${office.name} Reception`);
     setScannedSuccess(false);
     setConfirmedDelivery(null);
@@ -77,7 +78,17 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
     generateOfficePermanentQRCode(office.code, office.id).then((url) => {
       setPermanentQrUrl(url);
     });
-  }, [isOpen, office, pendingDeliveries.length, allDeliveries.length]);
+  }, [isOpen, office?.id]);
+
+  // React immediately if mobile QR scan confirms the delivery in real-time while this modal is open
+  useEffect(() => {
+    if (!isOpen || !office) return;
+    const current = allDeliveries.find((d) => d.id === selectedDeliveryId);
+    if (current && current.confirmationStatus === 'confirmed' && !scannedSuccess) {
+      setScannedSuccess(true);
+      setConfirmedDelivery(current);
+    }
+  }, [allDeliveries, selectedDeliveryId, isOpen, office, scannedSuccess]);
 
   // Clean up camera stream when modal closes
   useEffect(() => {
