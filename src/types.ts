@@ -46,10 +46,12 @@ export interface DeliveryRecord {
   customTimeLapseDays?: number; // Custom usage time lapse in days
   customDailyBurnRate?: number; // Custom daily burn rate in units/day
 
-  // Digital QR Code Confirmation & Verification Archive (replacing traditional handwritten signatures)
+  // Digital Signature & Verification Archive (tablet touch / stylus / mouse / PC)
   confirmationStatus?: 'pending' | 'confirmed';
   confirmedAt?: string; // e.g. "2026-09-10 10:14:32"
   confirmedBy?: string; // Name & title of the tourism office staff who confirmed the receipt
+  signerRole?: string; // e.g. "Receção / Responsável Posto"
+  signatureDataUrl?: string; // Digital handwritten signature captured via canvas (tablet touch / stylus / mouse / PC)
   qrToken?: string; // Cryptographic verification token
   confirmationSignatureCode?: string; // e.g. "VERIFIED-AHP-SORTELHA-89214"
   archiveNotes?: string;

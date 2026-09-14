@@ -24,7 +24,7 @@ import {
   ChevronDown,
   Layers,
   Sparkles,
-  QrCode,
+  PenTool,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -617,8 +617,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
             }`}
           >
-            <QrCode className="w-3.5 h-3.5 shrink-0" />
-            <span>Offices &amp; QR Hub</span>
+            <PenTool className="w-3.5 h-3.5 shrink-0" />
+            <span>Offices &amp; Signatures</span>
           </button>
 
           {onOpenOfficesDirectory && (

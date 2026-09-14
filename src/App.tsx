@@ -7,7 +7,7 @@ import { TourismFairsView } from './components/TourismFairsView';
 import { OtherDeliveriesView } from './components/OtherDeliveriesView';
 import { TourismOfficesHubView } from './components/TourismOfficesHubView';
 import { PrintableDeliveryArchiveModal } from './components/PrintableDeliveryArchiveModal';
-import { OfficeQRCodeScannerModal } from './components/OfficeQRCodeScannerModal';
+import { DigitalSignatureModal } from './components/DigitalSignatureModal';
 import { MobileOfficeValidationView } from './components/MobileOfficeValidationView';
 import { DeliveryModal } from './components/DeliveryModal';
 import { StockInModal } from './components/StockInModal';
@@ -208,14 +208,16 @@ export default function App() {
   // Tourism Offices & Contacts Directory Modal
   const [isOfficeContactsModalOpen, setIsOfficeContactsModalOpen] = useState(false);
 
-  // Digital Delivery QR Confirmation & Printable Archive Slip Modals
+  // Digital Delivery Signature & Printable Archive Slip Modals
   const [isArchiveSlipOpen, setIsArchiveSlipOpen] = useState(false);
   const [archiveSlipDelivery, setArchiveSlipDelivery] = useState<DeliveryRecord | null>(null);
   const [archiveSlipOffice, setArchiveSlipOffice] = useState<TourismOffice | null>(null);
   const [archiveSlipFlyer, setArchiveSlipFlyer] = useState<FlyerType | null>(null);
 
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scannerOffice, setScannerOffice] = useState<TourismOffice | null>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [signatureDelivery, setSignatureDelivery] = useState<DeliveryRecord | null>(null);
+  const [signatureOffice, setSignatureOffice] = useState<TourismOffice | null>(null);
+  const [signatureFlyer, setSignatureFlyer] = useState<FlyerType | null>(null);
 
   // Sync with LocalStorage
   useEffect(() => {
@@ -447,9 +449,71 @@ export default function App() {
     setIsArchiveSlipOpen(true);
   };
 
-  const handleOpenScanner = (office: TourismOffice) => {
-    setScannerOffice(office);
-    setIsScannerOpen(true);
+  const handleOpenSignatureModal = (
+    delivery: DeliveryRecord,
+    office: TourismOffice,
+    flyer: FlyerType
+  ) => {
+    setSignatureDelivery(delivery);
+    setSignatureOffice(office);
+    setSignatureFlyer(flyer);
+    setIsSignatureModalOpen(true);
+  };
+
+  const handleSaveDigitalSignature = (
+    deliveryId: string,
+    confirmedBy: string,
+    signerRole: string,
+    signatureDataUrl: string,
+    signAllPending?: boolean
+  ) => {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    setDeliveries((prev) => {
+      const target = prev.find((d) => d.id === deliveryId);
+      const targetOfficeId = target?.officeId;
+
+      return prev.map((d) => {
+        const isTarget = d.id === deliveryId;
+        const isBatchSign =
+          signAllPending &&
+          targetOfficeId &&
+          d.officeId === targetOfficeId &&
+          d.confirmationStatus !== 'confirmed';
+
+        if (isTarget || isBatchSign) {
+          const sigCode = `SIG-AHP-${d.deliveryRef.replace(/[^A-Z0-9]/gi, '')}-${Math.floor(
+            1000 + Math.random() * 9000
+          )}`;
+          return {
+            ...d,
+            confirmationStatus: 'confirmed',
+            confirmedAt: nowStr,
+            confirmedBy: confirmedBy || 'Responsável Posto de Turismo',
+            signerRole: signerRole || 'Receção / Técnico de Turismo',
+            signatureDataUrl: signatureDataUrl,
+            confirmationSignatureCode: sigCode,
+          };
+        }
+        return d;
+      });
+    });
+
+    setArchiveSlipDelivery((prev) => {
+      if (prev && prev.id === deliveryId) {
+        return {
+          ...prev,
+          confirmationStatus: 'confirmed',
+          confirmedAt: nowStr,
+          confirmedBy,
+          signerRole,
+          signatureDataUrl,
+        };
+      }
+      return prev;
+    });
+
+    showToast(`Receção assinada e confirmada digitalmente por ${confirmedBy}!`);
   };
 
   const handleConfirmDelivery = (deliveryId: string, confirmedBy: string) => {
@@ -911,7 +975,7 @@ export default function App() {
             onDeleteDelivery={handleDeleteDelivery}
             onConfirmDelivery={handleConfirmDelivery}
             onOpenPrintSlip={handleOpenPrintSlip}
-            onOpenScanner={handleOpenScanner}
+            onOpenSignatureModal={handleOpenSignatureModal}
             onOpenEditOffice={(office) => {
               setIsOfficeContactsModalOpen(true);
             }}
@@ -1033,6 +1097,7 @@ export default function App() {
           offices={offices}
           flyers={flyers}
           onConfirmDelivery={handleConfirmDelivery}
+          onOpenSignatureModal={handleOpenSignatureModal}
           onUpdateDelivery={(deliveryId, patch) => {
             handleUpdateDelivery(deliveryId, patch);
             setArchiveSlipDelivery((prev) => (prev && prev.id === deliveryId ? { ...prev, ...patch } : prev));
@@ -1048,29 +1113,25 @@ export default function App() {
         />
       )}
 
-      {/* Tourism Office QR Code Scanner & Reader Modal */}
-      {scannerOffice && (
-        <OfficeQRCodeScannerModal
-          isOpen={isScannerOpen}
+      {/* Digital Signature Modal (Signable on Tablets, iPads, Touchscreens & PCs) */}
+      {signatureDelivery && signatureOffice && signatureFlyer && (
+        <DigitalSignatureModal
+          isOpen={isSignatureModalOpen}
           onClose={() => {
-            setIsScannerOpen(false);
-            setScannerOffice(null);
+            setIsSignatureModalOpen(false);
+            setSignatureDelivery(null);
+            setSignatureOffice(null);
+            setSignatureFlyer(null);
           }}
-          office={scannerOffice}
-          pendingDeliveries={deliveries.filter(
-            (d) => d.officeId === scannerOffice.id && d.confirmationStatus !== 'confirmed'
+          delivery={signatureDelivery}
+          office={signatureOffice}
+          flyer={signatureFlyer}
+          pendingOfficeDeliveries={deliveries.filter(
+            (d) => d.officeId === signatureOffice.id && d.confirmationStatus !== 'confirmed'
           )}
-          allDeliveries={deliveries.filter((d) => d.officeId === scannerOffice.id)}
-          flyers={flyers}
-          onConfirmDelivery={handleConfirmDelivery}
-          onOpenPrintSlip={(del) => {
-            const fl = flyers.find((f) => f.id === del.flyerTypeId) || flyers[0];
-            handleOpenPrintSlip(del, scannerOffice, fl);
-          }}
-          onOpenMobileView={(code, id) => {
-            setIsScannerOpen(false);
-            setScannerOffice(null);
-            setMobileValidationOffice({ code, id });
+          onSaveSignature={handleSaveDigitalSignature}
+          onOpenPrintSlip={(del, off, fl) => {
+            handleOpenPrintSlip(del, off, fl);
           }}
         />
       )}
