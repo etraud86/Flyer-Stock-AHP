@@ -147,13 +147,23 @@ export default function App() {
     id?: string;
   } | null>(() => {
     if (typeof window !== 'undefined' && window.location) {
-      const params = new URLSearchParams(window.location.search);
-      const officeValidate = params.get('officeValidate');
-      const officeId = params.get('officeId');
-      if (officeValidate || officeId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      let code = searchParams.get('officeValidate') || searchParams.get('officeCode') || '';
+      let id = searchParams.get('officeId') || '';
+
+      if (!code && window.location.hash) {
+        const hashStr = window.location.hash.startsWith('#')
+          ? window.location.hash.slice(1)
+          : window.location.hash;
+        const hashParams = new URLSearchParams(hashStr);
+        code = hashParams.get('officeValidate') || hashParams.get('officeCode') || '';
+        id = id || hashParams.get('officeId') || '';
+      }
+
+      if (code || id) {
         return {
-          code: officeValidate || '',
-          id: officeId || undefined,
+          code: code || '',
+          id: id || undefined,
         };
       }
     }
@@ -339,6 +349,17 @@ export default function App() {
       showToast(`✓ QR Scan: ${updatedCount} delivery for ${resolvedName} confirmed in real time!`);
     }
   };
+
+  // Immediate auto-confirmation as soon as a mobile phone scan reading is detected
+  useEffect(() => {
+    if (mobileValidationOffice?.code || mobileValidationOffice?.id) {
+      handleRealTimeOfficeConfirmation(
+        mobileValidationOffice.code,
+        mobileValidationOffice.id,
+        'Mobile Phone Camera'
+      );
+    }
+  }, [mobileValidationOffice?.code, mobileValidationOffice?.id]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

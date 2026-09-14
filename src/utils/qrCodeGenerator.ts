@@ -37,8 +37,8 @@ export function getOfficePermanentQRUrl(officeCode: string, officeId: string): s
 
   const encodedCode = encodeURIComponent(officeCode);
   const encodedId = encodeURIComponent(officeId);
-  // Uses /qr-auto-confirm so mobile camera scan confirms on the server immediately
-  return `${origin}/qr-auto-confirm?officeCode=${encodedCode}&officeId=${encodedId}`;
+  // Target root SPA path so mobile camera scan always loads index.html without 404
+  return `${origin}/?officeValidate=${encodedCode}&officeId=${encodedId}&autoConfirm=1#officeValidate=${encodedCode}&officeId=${encodedId}`;
 }
 
 // In-memory cache for permanent office QR codes so they are instant

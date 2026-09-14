@@ -10,6 +10,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
+import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
 import { AuthUser, FlyerType, TourismOffice, DeliveryRecord } from '../types';
 
 interface FooterProps {
@@ -139,6 +140,19 @@ export const Footer: React.FC<FooterProps> = ({
               )}
             </div>
           )}
+        </div>
+
+        {/* Institutional Partners & Co-Financing Strip: PROVERE & CENTRO 2030 */}
+        <div className="mt-5 pt-4 border-t border-neutral-900/90 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3 text-center sm:text-left">
+            <span className="text-[10px] text-neutral-400 font-semibold tracking-wider uppercase">
+              Parceiros Institucionais &amp; Financiamento:
+            </span>
+            <InstitutionalCoFinancingLogos showLabels={false} />
+          </div>
+          <div className="text-[11px] text-neutral-400 text-center md:text-right">
+            <span>Estratégia de Eficiência Coletiva PROVERE &bull; Aldeias Históricas de Portugal</span>
+          </div>
         </div>
 
         {/* Bottom copyright line */}

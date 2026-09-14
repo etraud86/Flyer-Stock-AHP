@@ -440,25 +440,6 @@ export const OfficeQRCodeScannerModal: React.FC<OfficeQRCodeScannerModalProps> =
 
               {/* Action Buttons */}
               <div className="pt-2 border-t border-neutral-800 space-y-2">
-                <button
-                  type="button"
-                  disabled={isScanning || !activeDelivery}
-                  onClick={handleSimulateScanAndConfirm}
-                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 transition-all cursor-pointer"
-                >
-                  {isScanning ? (
-                    <>
-                      <Scan className="w-4 h-4 animate-spin" />
-                      <span>Validating Permanent Office QR Code...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Scan className="w-4 h-4" />
-                      <span>Scan Permanent QR &amp; Auto-Confirm</span>
-                    </>
-                  )}
-                </button>
-
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"

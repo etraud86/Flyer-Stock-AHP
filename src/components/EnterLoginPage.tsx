@@ -14,6 +14,7 @@ import {
   Key,
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
+import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
 import {
   loginUser,
   directResetPassword,
@@ -30,11 +31,11 @@ type LoginView = 'login' | 'reset_password' | 'reset_success';
 export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }) => {
   const [view, setView] = useState<LoginView>('login');
 
-  // Login form state
-  const [email, setEmail] = useState('portal.ahp@gmail.com');
-  const [password, setPassword] = useState('AHP@Logistica2026!');
+  // Login form state - starts empty every time as requested by user
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
@@ -223,10 +224,12 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                       <input
                         type="email"
                         required
+                        autoComplete="off"
+                        autoFocus
                         disabled={lockoutSeconds > 0 || isLoading}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="portal.ahp@gmail.com"
+                        placeholder="Enter your email (e.g. portal.ahp@gmail.com)"
                         className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
                       />
                     </div>
@@ -273,17 +276,10 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     </div>
                   </div>
 
-                  {/* Remember Me */}
-                  <div className="flex items-center justify-between pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-400">
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded-sm bg-neutral-950 border-neutral-700 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>Keep signed in on this workstation</span>
-                    </label>
+                  {/* Institutional Security Notice */}
+                  <div className="text-[11px] text-neutral-500 pt-1 flex items-center justify-between">
+                    <span>Credentials required on each session access</span>
+                    <span className="font-mono text-neutral-400">AHP Security</span>
                   </div>
 
                   {/* Submit Button */}
@@ -530,17 +526,17 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 w-full px-6 py-4 border-t border-neutral-800/80 bg-neutral-900/60 text-xs text-neutral-400 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <AHPCasteloIcon className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Associação de Desenvolvimento Turístico Aldeias Históricas de Portugal</span>
+      {/* Footer with Centro 2030 and Provere logos */}
+      <footer className="relative z-10 w-full px-6 py-4 border-t border-neutral-800/80 bg-neutral-900/60 text-xs text-neutral-400 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-center md:text-left">
+          <AHPCasteloIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-medium text-neutral-300">
+            Associação de Desenvolvimento Turístico Aldeias Históricas de Portugal
+          </span>
         </div>
-        <div className="flex items-center gap-4 text-[11px]">
-          <span>Centro 2030</span>
-          <span>Portugal 2030</span>
-          <span>União Europeia</span>
-          <span className="text-neutral-300">&copy; 2026 AHP</span>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <InstitutionalCoFinancingLogos showLabels={false} />
+          <span className="text-neutral-400 text-[11px] font-mono">&copy; 2026 AHP</span>
         </div>
       </footer>
     </div>
