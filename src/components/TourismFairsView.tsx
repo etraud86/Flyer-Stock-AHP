@@ -581,73 +581,91 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                   </button>
                 </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {fairItems.map((fi, idx) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-12 gap-2 p-2 bg-slate-50 border border-slate-200 rounded items-center"
-                    >
-                      <div className="col-span-5">
-                        <select
-                          value={fi.flyerTypeId}
-                          onChange={(e) => handleItemChange(idx, 'flyerTypeId', e.target.value)}
-                          className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-[11px]"
-                        >
-                          {flyers.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.sku} - {f.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {fairItems.map((fi, idx) => {
+                    const selectedFlyer = flyers.find((f) => f.id === fi.flyerTypeId);
+                    const spent = Math.max(0, fi.quantityTaken - fi.quantityReturned);
 
-                      <div className="col-span-3">
-                        <input
-                          type="number"
-                          placeholder="Taken"
-                          value={fi.quantityTaken}
-                          onChange={(e) =>
-                            handleItemChange(
-                              idx,
-                              'quantityTaken',
-                              Math.max(0, parseInt(e.target.value) || 0)
-                            )
-                          }
-                          className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-[11px] text-right font-medium"
-                          title="Flyers taken to fair"
-                        />
-                      </div>
-
-                      <div className="col-span-3">
-                        <input
-                          type="number"
-                          placeholder="Returned"
-                          value={fi.quantityReturned}
-                          onChange={(e) =>
-                            handleItemChange(
-                              idx,
-                              'quantityReturned',
-                              Math.max(0, parseInt(e.target.value) || 0)
-                            )
-                          }
-                          className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-[11px] text-right font-medium"
-                          title="Flyers brought back unused"
-                        />
-                      </div>
-
-                      <div className="col-span-1 text-center">
-                        {fairItems.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItemRow(idx)}
-                            className="text-slate-400 hover:text-red-600 cursor-pointer"
+                    return (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-12 gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg items-center shadow-2xs"
+                        style={{ borderLeftColor: selectedFlyer?.color || '#a855f7', borderLeftWidth: '4px' }}
+                      >
+                        <div className="col-span-5 flex items-center gap-1.5">
+                          <span
+                            className="w-3.5 h-3.5 rounded-full shrink-0 border border-slate-300 shadow-2xs"
+                            style={{ backgroundColor: selectedFlyer?.color || '#a855f7' }}
+                            title={`Flyer brand color: ${selectedFlyer?.color}`}
+                          />
+                          <select
+                            value={fi.flyerTypeId}
+                            onChange={(e) => handleItemChange(idx, 'flyerTypeId', e.target.value)}
+                            className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-black text-slate-900 font-bold text-xs focus:ring-1 focus:ring-purple-500"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                            {flyers.map((f) => (
+                              <option key={f.id} value={f.id} className="text-black text-slate-900 bg-white font-semibold">
+                                {f.sku} - {f.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="col-span-3">
+                          <div className="relative">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Taken</span>
+                            <input
+                              type="number"
+                              placeholder="Taken"
+                              value={fi.quantityTaken}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  idx,
+                                  'quantityTaken',
+                                  Math.max(0, parseInt(e.target.value) || 0)
+                                )
+                              }
+                              className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-black text-slate-900 text-xs text-right font-bold focus:ring-1 focus:ring-purple-500"
+                              title="Flyers taken to fair"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="col-span-3">
+                          <div className="relative">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Returned</span>
+                            <input
+                              type="number"
+                              placeholder="Returned"
+                              value={fi.quantityReturned}
+                              onChange={(e) =>
+                                handleItemChange(
+                                  idx,
+                                  'quantityReturned',
+                                  Math.max(0, parseInt(e.target.value) || 0)
+                                )
+                              }
+                              className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-black text-slate-900 text-xs text-right font-bold focus:ring-1 focus:ring-purple-500"
+                              title="Flyers brought back unused"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="col-span-1 text-center pt-3.5">
+                          {fairItems.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItemRow(idx)}
+                              className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer"
+                              title="Remove row"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
