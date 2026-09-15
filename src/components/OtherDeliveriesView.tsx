@@ -33,7 +33,7 @@ interface OtherDeliveriesViewProps {
 }
 
 const CATEGORY_CONFIG: Record<
-  OtherDeliveryCategory,
+  string,
   { label: string; icon: React.ReactNode; color: string; badge: string }
 > = {
   guided_tour: {
@@ -74,6 +74,23 @@ const CATEGORY_CONFIG: Record<
   },
 };
 
+export const getCategoryMeta = (cat: string) => {
+  if (CATEGORY_CONFIG[cat]) {
+    return CATEGORY_CONFIG[cat];
+  }
+  const matched = Object.values(CATEGORY_CONFIG).find(
+    (c) => c.label.toLowerCase() === (cat || '').toLowerCase()
+  );
+  if (matched) return matched;
+
+  return {
+    label: cat || 'Custom Delivery',
+    icon: <Tag className="w-3.5 h-3.5" />,
+    color: 'teal',
+    badge: 'bg-teal-100 text-teal-800 border-teal-200',
+  };
+};
+
 export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
   records,
   flyers,
@@ -86,10 +103,13 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isInlineEditMode, setIsInlineEditMode] = useState<boolean>(true);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteModalConfirm, setDeleteModalConfirm] = useState(false);
 
   // Form State
   const [ref, setRef] = useState('');
-  const [category, setCategory] = useState<OtherDeliveryCategory>('historical_village_office');
+  const [category, setCategory] = useState<string>('historical_village_office');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(TODAY_STR);
   const [flyerTypeId, setFlyerTypeId] = useState(flyers[0]?.id || '');
@@ -104,6 +124,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
     setEditingRecordId(null);
     setRef(`OD-2026-${(records.length + 1).toString().padStart(3, '0')}`);
     setCategory('historical_village_office');
+    setIsCustomCategory(false);
+    setDeleteModalConfirm(false);
     setTitle('');
     setDate(TODAY_STR);
     setFlyerTypeId(flyers[0]?.id || '');
@@ -118,6 +140,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
     setEditingRecordId(record.id);
     setRef(record.ref || '');
     setCategory(record.category);
+    setIsCustomCategory(!CATEGORY_CONFIG[record.category]);
+    setDeleteModalConfirm(false);
     setTitle(record.title);
     setDate(record.date);
     setFlyerTypeId(record.flyerTypeId);
@@ -149,14 +173,18 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
   const totalFlyersDistributed = records.reduce((sum, r) => sum + r.quantity, 0);
   const totalDispatches = records.length;
 
-  // Breakdown by category
-  const categoryStats = (Object.keys(CATEGORY_CONFIG) as OtherDeliveryCategory[]).map((cat) => {
+  // Breakdown by category (standard + all user-entered custom categories)
+  const allCategories = Array.from(
+    new Set([...Object.keys(CATEGORY_CONFIG), ...records.map((r) => r.category).filter(Boolean)])
+  );
+
+  const categoryStats = allCategories.map((cat) => {
     const catRecords = records.filter((r) => r.category === cat);
     const count = catRecords.length;
     const qty = catRecords.reduce((sum, r) => sum + r.quantity, 0);
     return {
       category: cat,
-      config: CATEGORY_CONFIG[cat],
+      config: getCategoryMeta(cat),
       count,
       qty,
     };
@@ -365,7 +393,7 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
             </h2>
             {categoryFilter !== 'all' && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 flex items-center gap-1">
-                Filter: {CATEGORY_CONFIG[categoryFilter as OtherDeliveryCategory]?.label.split('(')[0]}
+                Filter: {getCategoryMeta(categoryFilter)?.label.split('(')[0]}
                 <button
                   onClick={() => setCategoryFilter('all')}
                   className="hover:text-teal-950 font-bold ml-1 cursor-pointer"
@@ -420,7 +448,7 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
               ) : (
                 filteredRecords.map((rec) => {
                   const fl = flyers.find((f) => f.id === rec.flyerTypeId);
-                  const catCfg = CATEGORY_CONFIG[rec.category] || CATEGORY_CONFIG.other;
+                  const catCfg = getCategoryMeta(rec.category);
 
                   return (
                     <tr
@@ -460,19 +488,19 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       {/* Category */}
                       <td className="py-3 px-4">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <select
-                            value={rec.category}
-                            onChange={(e) =>
-                              onUpdateRecord(rec.id, { category: e.target.value as OtherDeliveryCategory })
-                            }
-                            className="border border-slate-300 rounded px-1.5 py-1 text-xs bg-white text-slate-800"
-                          >
-                            {(Object.keys(CATEGORY_CONFIG) as OtherDeliveryCategory[]).map((cat) => (
-                              <option key={cat} value={cat}>
-                                {CATEGORY_CONFIG[cat].label.split('(')[0]}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={rec.category}
+                              onChange={(e) =>
+                                onUpdateRecord(rec.id, { category: e.target.value })
+                              }
+                              list="category-suggestions-list"
+                              placeholder="Category..."
+                              className="border border-teal-300 rounded px-2 py-1 text-xs bg-white text-slate-800 font-medium focus:ring-1 focus:ring-teal-500 w-36"
+                              title="Editable delivery category. Type custom category or pick from suggestions."
+                            />
+                          </div>
                         ) : (
                           <span
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${catCfg.badge}`}
@@ -528,12 +556,19 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                             ))}
                           </select>
                         ) : (
-                          <>
-                            <span className="font-medium text-slate-800">{fl?.name}</span>
-                            <span className="text-slate-400 text-[10px] block font-mono">
-                              {fl?.sku} &bull; {fl?.language}
-                            </span>
-                          </>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3.5 h-3.5 rounded-full shrink-0 border border-slate-300 shadow-2xs"
+                              style={{ backgroundColor: fl?.color || '#059669' }}
+                              title={`Flyer brand color: ${fl?.color}`}
+                            />
+                            <div>
+                              <span className="font-medium text-slate-800">{fl?.name}</span>
+                              <span className="text-slate-400 text-[10px] block font-mono">
+                                {fl?.sku} &bull; {fl?.language}
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </td>
 
@@ -608,18 +643,39 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                           </button>
 
                           {onDeleteRecord && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (window.confirm(`Delete delivery record "${rec.title}" (${rec.ref})?`)) {
-                                  onDeleteRecord(rec.id);
-                                }
-                              }}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
-                              title="Delete record"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            deleteConfirmId === rec.id ? (
+                              <div className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 animate-in fade-in">
+                                <span className="text-[10px] font-bold text-red-700">Delete?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onDeleteRecord(rec.id);
+                                    setDeleteConfirmId(null);
+                                  }}
+                                  className="px-1.5 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold cursor-pointer shadow-2xs"
+                                  title="Confirm delete"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold cursor-pointer"
+                                  title="Cancel"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmId(rec.id)}
+                                className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
+                                title="Delete delivery record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )
                           )}
                         </div>
                       </td>
@@ -681,20 +737,71 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Delivery Category *
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as OtherDeliveryCategory)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 font-medium focus:ring-1 focus:ring-teal-500"
-                >
-                  {(Object.keys(CATEGORY_CONFIG) as OtherDeliveryCategory[]).map((cat) => (
-                    <option key={cat} value={cat}>
-                      {CATEGORY_CONFIG[cat].label}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-700 text-xs">
+                    Delivery Category *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomCategory(!isCustomCategory)}
+                    className="text-xs text-teal-700 hover:text-teal-900 font-semibold underline cursor-pointer"
+                  >
+                    {isCustomCategory ? '← Choose from Preset List' : '✏️ Edit / Custom Category'}
+                  </button>
+                </div>
+                {isCustomCategory ? (
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      placeholder="Type custom category name (e.g. Tourism Fair, Festival, Guided Excursion)..."
+                      className="w-full border-2 border-teal-600 rounded px-3 py-2 bg-white text-slate-900 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                    />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] text-slate-400 font-medium">Quick presets:</span>
+                      {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setCategory(cfg.label)}
+                          className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-teal-50 text-slate-700 border border-slate-200 cursor-pointer"
+                        >
+                          {cfg.label.split('(')[0].trim()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setIsCustomCategory(true);
+                        setCategory('');
+                      } else {
+                        setCategory(e.target.value);
+                      }
+                    }}
+                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 font-medium focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                  >
+                    {Object.keys(CATEGORY_CONFIG).map((cat) => (
+                      <option key={cat} value={cat}>
+                        {CATEGORY_CONFIG[cat].label}
+                      </option>
+                    ))}
+                    {records
+                      .map((r) => r.category)
+                      .filter((c, i, a) => c && !CATEGORY_CONFIG[c] && a.indexOf(c) === i)
+                      .map((customCat) => (
+                        <option key={customCat} value={customCat}>
+                          Custom: {customCat}
+                        </option>
+                      ))}
+                    <option value="__custom__">✨ + Enter Custom Category...</option>
+                  </select>
+                )}
               </div>
 
               <div>
@@ -716,17 +823,27 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                   <label className="block font-semibold text-slate-700 mb-1">
                     Flyer Publication *
                   </label>
-                  <select
-                    value={flyerTypeId}
-                    onChange={(e) => setFlyerTypeId(e.target.value)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
-                  >
-                    {flyers.map((fl) => (
-                      <option key={fl.id} value={fl.id}>
-                        {fl.sku} — {fl.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded-full shrink-0 border border-slate-300 shadow-2xs"
+                      style={{
+                        backgroundColor:
+                          flyers.find((f) => f.id === flyerTypeId)?.color || '#059669',
+                      }}
+                      title="Flyer theme color"
+                    />
+                    <select
+                      value={flyerTypeId}
+                      onChange={(e) => setFlyerTypeId(e.target.value)}
+                      className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                    >
+                      {flyers.map((fl) => (
+                        <option key={fl.id} value={fl.id}>
+                          {fl.sku} — {fl.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -787,25 +904,81 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-md bg-teal-700 hover:bg-teal-800 text-white font-bold shadow-xs transition-colors cursor-pointer"
-                >
-                  {editingRecordId ? 'Save Delivery Changes' : 'Save Non-Circuit Delivery'}
-                </button>
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                {editingRecordId && onDeleteRecord ? (
+                  deleteModalConfirm ? (
+                    <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded px-2.5 py-1">
+                      <span className="text-xs text-red-800 font-bold">Delete this record?</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeleteRecord(editingRecordId);
+                          setIsModalOpen(false);
+                          setDeleteModalConfirm(false);
+                        }}
+                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded font-bold text-xs cursor-pointer shadow-2xs"
+                      >
+                        Yes, Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteModalConfirm(false)}
+                        className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-semibold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteModalConfirm(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-semibold text-xs cursor-pointer transition-colors"
+                      title="Delete this delivery log"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                      <span>Delete Log</span>
+                    </button>
+                  )
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setDeleteModalConfirm(false);
+                    }}
+                    className="px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-md bg-teal-700 hover:bg-teal-800 text-white font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    {editingRecordId ? 'Save Delivery Changes' : 'Save Non-Circuit Delivery'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Global Category suggestions datalist */}
+      <datalist id="category-suggestions-list">
+        {Object.values(CATEGORY_CONFIG).map((c, i) => (
+          <option key={i} value={c.label} />
+        ))}
+        {records
+          .map((r) => r.category)
+          .filter((c, i, a) => c && !CATEGORY_CONFIG[c] && a.indexOf(c) === i)
+          .map((customCat) => (
+            <option key={customCat} value={customCat} />
+          ))}
+      </datalist>
     </div>
   );
 };

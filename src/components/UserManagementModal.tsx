@@ -26,6 +26,8 @@ import {
   getStoredAccounts,
   adminResetUserPassword,
   deleteUserAccount,
+  validatePasswordPolicy,
+  generateCompliantPassword,
   StoredUserAccount,
 } from '../utils/auth';
 import { AuthUser } from '../types';
@@ -88,8 +90,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     e.preventDefault();
     setChangePassError(null);
 
-    if (newPassword.length < 6) {
-      setChangePassError('New password must contain at least 6 characters.');
+    if (!newPassword || newPassword.trim().length === 0) {
+      setChangePassError('Please enter a new password.');
       return;
     }
 
@@ -136,18 +138,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   };
 
   const handleGenerateStrongPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
-    let pass = 'AHP@';
-    for (let i = 0; i < 8; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const pass = generateCompliantPassword();
     setRegPassword(pass);
     setRegShowPassword(true);
   };
 
   const handleAdminResetPassword = (userId: string) => {
-    if (!resetNewPass || resetNewPass.length < 6) {
-      setResetError('New password must contain at least 6 characters.');
+    const targetUser = accounts.find((u) => u.id === userId);
+    const policy = validatePasswordPolicy(resetNewPass, targetUser);
+    if (!policy.valid) {
+      setResetError(policy.error || 'Password does not meet institutional requirements.');
       return;
     }
     const res = adminResetUserPassword(userId, resetNewPass);
@@ -304,50 +304,94 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               </div>
 
               {/* New Password */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  New Password *
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPasswords ? 'text' : 'password'}
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
+              {(() => {
+                const targetAccount = accounts.find((u) => u.id === currentUser.id);
+                const policy = validatePasswordPolicy(newPassword, targetAccount);
+                const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
-              {/* Confirm New Password */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Confirm New Password *
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPasswords ? 'text' : 'password'}
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repeat new password"
-                    className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
+                return (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-neutral-300">
+                          New Password *
+                        </label>
+                        <span className="text-[10px] text-amber-400 font-medium">
+                          Requires Capital &amp; Special Symbol
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showPasswords ? 'text' : 'password'}
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="e.g. AHP@Seguranca2026!"
+                          className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                      </div>
+                    </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>Save New Password</span>
-                </button>
-              </div>
+                    {/* Confirm New Password */}
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                        Confirm New Password *
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showPasswords ? 'text' : 'password'}
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Repeat new password"
+                          className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Policy checklist */}
+                    <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                      <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                        Security Rules:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className={`flex items-center gap-1.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>At least 8 chars</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>Capital (A-Z)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>Special Symbol (!@#$)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>No repeat</span>
+                        </div>
+                      </div>
+                      {confirmPassword.length > 0 && !passwordsMatch && (
+                        <p className="text-amber-400 text-[10px] pt-0.5">⚠️ Passwords do not match.</p>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={changePassSuccess || !policy.valid || !passwordsMatch}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Save New Password</span>
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </form>
           )}
 
@@ -442,7 +486,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer font-medium"
                   >
                     <Sparkles className="w-3 h-3" />
-                    <span>Auto-Generate Secure</span>
+                    <span>Auto-Generate Compliant</span>
                   </button>
                 </div>
                 <div className="relative">
@@ -452,7 +496,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     required
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Enter or auto-generate password"
+                    placeholder="e.g. AHP@Operador2026!"
                     className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                   <button
@@ -465,10 +509,40 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 </div>
               </div>
 
+              {(() => {
+                const regPolicy = validatePasswordPolicy(regPassword);
+                return (
+                  <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                    <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                      Required Password Rules:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Min. 8 characters</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Capital Letter (A-Z)</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Special Symbol (!@#$)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Salted encryption</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  disabled={regSuccess || !validatePasswordPolicy(regPassword).valid || !regName || !regEmail}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>Register &amp; Activate User</span>
@@ -581,21 +655,33 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
                       {/* Reset Password Form Inline */}
                       {isResettingThis && (
-                        <div className="mt-2 pt-2 border-t border-neutral-800/80 flex items-center gap-2 animate-in fade-in">
-                          <input
-                            type="text"
-                            value={resetNewPass}
-                            onChange={(e) => setResetNewPass(e.target.value)}
-                            placeholder="New password (min 6 chars)"
-                            className="flex-1 px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleAdminResetPassword(acc.id)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer"
-                          >
-                            Save
-                          </button>
+                        <div className="mt-2 pt-2 border-t border-neutral-800/80 space-y-2 animate-in fade-in">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={resetNewPass}
+                              onChange={(e) => setResetNewPass(e.target.value)}
+                              placeholder="e.g. AHP@Seguranca2026!"
+                              className="flex-1 px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setResetNewPass(generateCompliantPassword())}
+                              className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 border border-neutral-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                            >
+                              Auto-Generate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAdminResetPassword(acc.id)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap"
+                            >
+                              Save
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-neutral-400">
+                            Must contain at least 8 characters, 1 capital letter, 1 special character, and cannot repeat previous password.
+                          </p>
                         </div>
                       )}
                     </div>

@@ -19,6 +19,8 @@ import {
   loginUser,
   directResetPassword,
   getFailedAttemptsInfo,
+  validatePasswordPolicy,
+  getStoredAccounts,
 } from '../utils/auth';
 import { AuthSession } from '../types';
 
@@ -96,8 +98,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
       return;
     }
 
-    if (newPassword.length < 6) {
-      setErrorMessage('New password must contain at least 6 characters.');
+    if (!newPassword || newPassword.trim().length === 0) {
+      setErrorMessage('Please enter a new password.');
       return;
     }
 
@@ -366,68 +368,115 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      New Password (min. 6 characters)
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
-                        className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
-                      >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
+                  {(() => {
+                    const matchedAccount = getStoredAccounts().find(
+                      (u) => u.email.toLowerCase() === resetEmail.trim().toLowerCase()
+                    );
+                    const policy = validatePasswordPolicy(newPassword, matchedAccount);
+                    const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                        <Key className="w-4 h-4" />
-                      </div>
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repeat new password"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                    </div>
-                  </div>
+                    return (
+                      <>
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-semibold text-neutral-300">
+                              New Password
+                            </label>
+                            <span className="text-[10px] text-amber-400 font-medium">
+                              Requires Capital & Special Character
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                              <Lock className="w-4 h-4" />
+                            </div>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="e.g. AHP@Seguranca2026!"
+                              className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
+                            >
+                              {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
 
-                  <button
-                    type="submit"
-                    disabled={isLoading || !resetEmail || newPassword.length < 6}
-                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] font-semibold text-sm text-white shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Updating Password...</span>
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                            Confirm New Password
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                              <Key className="w-4 h-4" />
+                            </div>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              placeholder="Repeat new password"
+                              className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Real-time Password Policy Checklist */}
+                        <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                          <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                            Password Security Policy:
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <div className={`flex items-center gap-1.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>At least 8 characters</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>Capital Letter (A-Z)</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>Special Symbol (!@#$%)</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>No repeat of previous</span>
+                            </div>
+                          </div>
+                          {confirmPassword.length > 0 && !passwordsMatch && (
+                            <p className="text-amber-400 text-[10px] pt-1">
+                              ⚠️ Passwords do not match.
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isLoading || !resetEmail || !policy.valid || !passwordsMatch}
+                          className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] font-semibold text-sm text-white shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Updating Password...</span>
+                            </>
+                          ) : (
+                            <>
+                              <KeyRound className="w-4 h-4" />
+                              <span>Save New Secure Password</span>
+                            </>
+                          )}
+                        </button>
                       </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        <span>Save New Password</span>
-                      </>
-                    )}
-                  </button>
+                    );
+                  })()}
 
                   <div className="text-center pt-2">
                     <button
@@ -499,7 +548,7 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     >
                       <div>
                         <span className="font-bold text-white block">AHP Administrator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com • pass: AHP@Logistica2026!</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill
@@ -512,7 +561,7 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     >
                       <div>
                         <span className="font-bold text-white block">Logistics Coordinator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt • pass: AHP@Logistica2026!</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill

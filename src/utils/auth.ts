@@ -13,7 +13,8 @@ export interface StoredUserAccount {
   name: string;
   role: 'admin' | 'logistics_coordinator' | 'manager';
   passwordHash: string; // Base64 salted hash
-  alternatePasswordHash?: string; // convenient shorter alias
+  alternatePasswordHash?: string; // Optional legacy alias
+  passwordHistory?: string[]; // Array of previous password hashes to prevent repeating passwords
   lastLogin?: string;
   createdAt?: string;
 }
@@ -31,6 +32,137 @@ export function hashPassword(password: string): string {
   return btoa(`ahp_${hash}_${str.length}`);
 }
 
+/**
+ * Strict Password Policy Validation:
+ * - Must have at least 8 characters
+ * - Must contain at least one Capital Letter (A-Z)
+ * - Must contain at least one Special Character (!@#$%^&*...)
+ * - Cannot repeat current password or any password in history
+ */
+export interface PasswordValidationResult {
+  valid: boolean;
+  error?: string;
+  hasCapital: boolean;
+  hasSpecial: boolean;
+  hasMinLength: boolean;
+  isNotRepeated: boolean;
+}
+
+export function validatePasswordPolicy(
+  newPassword: string,
+  user?: StoredUserAccount
+): PasswordValidationResult {
+  const cleanPass = newPassword ? newPassword.trim() : '';
+  const hasMinLength = cleanPass.length >= 8;
+  const hasCapital = /[A-Z]/.test(cleanPass);
+  const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(cleanPass);
+
+  let isNotRepeated = true;
+  if (user && cleanPass.length > 0) {
+    const newHash = hashPassword(cleanPass);
+    if (user.passwordHash === newHash) {
+      isNotRepeated = false;
+    }
+    if (user.alternatePasswordHash && user.alternatePasswordHash === newHash) {
+      isNotRepeated = false;
+    }
+    if (user.passwordHistory && user.passwordHistory.includes(newHash)) {
+      isNotRepeated = false;
+    }
+  }
+
+  if (!hasMinLength) {
+    return {
+      valid: false,
+      error: 'Password must be at least 8 characters long.',
+      hasCapital,
+      hasSpecial,
+      hasMinLength,
+      isNotRepeated,
+    };
+  }
+
+  if (!hasCapital) {
+    return {
+      valid: false,
+      error: 'Password must contain at least one Capital Letter (A-Z).',
+      hasCapital,
+      hasSpecial,
+      hasMinLength,
+      isNotRepeated,
+    };
+  }
+
+  if (!hasSpecial) {
+    return {
+      valid: false,
+      error: 'Password must contain at least one special character (e.g. ! @ # $ % & *).',
+      hasCapital,
+      hasSpecial,
+      hasMinLength,
+      isNotRepeated,
+    };
+  }
+
+  if (!isNotRepeated) {
+    return {
+      valid: false,
+      error: 'You cannot repeat or reuse your previous password. Please enter a new, unique password.',
+      hasCapital,
+      hasSpecial,
+      hasMinLength,
+      isNotRepeated,
+    };
+  }
+
+  return {
+    valid: true,
+    hasCapital,
+    hasSpecial,
+    hasMinLength,
+    isNotRepeated,
+  };
+}
+
+/**
+ * Generates a strong password compliant with the institutional security policy:
+ * Contains Capital Letters, lowercase letters, numbers, and special characters.
+ */
+export function generateCompliantPassword(): string {
+  const capitals = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lowers = 'abcdefghijkmnpqrstuvwxyz';
+  const numbers = '23456789';
+  const specials = '!@#$%&*?';
+
+  let pwd = '';
+  pwd += capitals.charAt(Math.floor(Math.random() * capitals.length));
+  pwd += capitals.charAt(Math.floor(Math.random() * capitals.length));
+  pwd += lowers.charAt(Math.floor(Math.random() * lowers.length));
+  pwd += lowers.charAt(Math.floor(Math.random() * lowers.length));
+  pwd += numbers.charAt(Math.floor(Math.random() * numbers.length));
+  pwd += specials.charAt(Math.floor(Math.random() * specials.length));
+  pwd += specials.charAt(Math.floor(Math.random() * specials.length));
+  pwd += '2026!';
+  return pwd;
+}
+
+/**
+ * Internal helper to safely update user password and push old hash to history
+ */
+function recordPasswordUpdateInUser(user: StoredUserAccount, newPasswordInput: string) {
+  const oldHash = user.passwordHash;
+  const history = user.passwordHistory ? [...user.passwordHistory] : [];
+  if (oldHash && !history.includes(oldHash)) {
+    history.push(oldHash);
+  }
+  if (user.alternatePasswordHash && !history.includes(user.alternatePasswordHash)) {
+    history.push(user.alternatePasswordHash);
+  }
+  user.passwordHistory = history.slice(-10); // store up to last 10 passwords
+  user.passwordHash = hashPassword(newPasswordInput);
+  user.alternatePasswordHash = undefined;
+}
+
 const DEFAULT_USERS: StoredUserAccount[] = [
   {
     id: 'user-portal-ahp',
@@ -38,7 +170,7 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     name: 'Aldeias Históricas de Portugal',
     role: 'admin',
     passwordHash: hashPassword('AHP@Logistica2026!'),
-    alternatePasswordHash: hashPassword('ahp2026'),
+    passwordHistory: [],
     lastLogin: new Date().toISOString(),
     createdAt: '2026-01-01',
   },
@@ -48,7 +180,7 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     name: 'Administração Geral AHP',
     role: 'admin',
     passwordHash: hashPassword('AHP@Logistica2026!'),
-    alternatePasswordHash: hashPassword('ahp2026'),
+    passwordHistory: [],
     createdAt: '2026-01-15',
   },
   {
@@ -57,7 +189,7 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     name: 'Coordenação de Stock e Postos',
     role: 'logistics_coordinator',
     passwordHash: hashPassword('AHP@Logistica2026!'),
-    alternatePasswordHash: hashPassword('ahp2026'),
+    passwordHistory: [],
     createdAt: '2026-02-01',
   },
 ];
@@ -70,9 +202,28 @@ export function getStoredAccounts(): StoredUserAccount[] {
       return DEFAULT_USERS;
     }
     const parsed: StoredUserAccount[] = JSON.parse(raw);
+    let modified = false;
     // Ensure primary user exists
     if (!parsed.some((u) => u.email.toLowerCase() === 'portal.ahp@gmail.com')) {
       parsed.unshift(DEFAULT_USERS[0]);
+      modified = true;
+    }
+    // Ensure passwordHistory is an array and clean up legacy alternate hashes
+    parsed.forEach((u) => {
+      if (!Array.isArray(u.passwordHistory)) {
+        u.passwordHistory = [];
+        modified = true;
+      }
+      if (u.alternatePasswordHash) {
+        u.alternatePasswordHash = undefined;
+        modified = true;
+      }
+      if (!u.passwordHash) {
+        u.passwordHash = hashPassword('AHP@Logistica2026!');
+        modified = true;
+      }
+    });
+    if (modified) {
       localStorage.setItem(STORAGE_KEYS.CREDENTIALS, JSON.stringify(parsed));
     }
     return parsed;
@@ -324,6 +475,7 @@ export function loginUser(
 /**
  * Direct Password Reset:
  * Resets user password directly by entering their registered email and new password.
+ * Enforces strict policy: capital letter, special character, no repeating previous password.
  */
 export function directResetPassword(
   emailInput: string,
@@ -334,18 +486,18 @@ export function directResetPassword(
     return { success: false, error: 'Please enter a valid institutional email address.' };
   }
 
-  if (!newPasswordInput || newPasswordInput.length < 6) {
-    return { success: false, error: 'New password must contain at least 6 characters.' };
-  }
-
   const accounts = getStoredAccounts();
   const user = accounts.find((u) => u.email.toLowerCase() === cleanEmail);
   if (!user) {
     return { success: false, error: 'No registered user found with this email address.' };
   }
 
-  user.passwordHash = hashPassword(newPasswordInput);
-  user.alternatePasswordHash = undefined;
+  const policy = validatePasswordPolicy(newPasswordInput, user);
+  if (!policy.valid) {
+    return { success: false, error: policy.error };
+  }
+
+  recordPasswordUpdateInUser(user, newPasswordInput);
   saveStoredAccounts(accounts);
   localStorage.removeItem(STORAGE_KEYS.FAILED_ATTEMPTS);
 
@@ -545,10 +697,6 @@ export function updateAccountPassword(
   currentPassword: string,
   newPassword: string
 ): { success: boolean; error?: string } {
-  if (!newPassword || newPassword.length < 6) {
-    return { success: false, error: 'New password must contain at least 6 characters.' };
-  }
-
   const accounts = getStoredAccounts();
   const user = accounts.find((u) => u.id === userId);
 
@@ -565,8 +713,12 @@ export function updateAccountPassword(
     return { success: false, error: 'The current password provided is incorrect.' };
   }
 
-  user.passwordHash = hashPassword(newPassword);
-  user.alternatePasswordHash = undefined; // Clear alias once custom password set
+  const policy = validatePasswordPolicy(newPassword, user);
+  if (!policy.valid) {
+    return { success: false, error: policy.error };
+  }
+
+  recordPasswordUpdateInUser(user, newPassword);
   saveStoredAccounts(accounts);
 
   return { success: true };
@@ -592,8 +744,9 @@ export function registerNewUser(
     return { success: false, error: 'A valid email address is required.' };
   }
 
-  if (!initialPassword || initialPassword.length < 6) {
-    return { success: false, error: 'Initial password must be at least 6 characters.' };
+  const policy = validatePasswordPolicy(initialPassword);
+  if (!policy.valid) {
+    return { success: false, error: policy.error };
   }
 
   const accounts = getStoredAccounts();
@@ -607,6 +760,7 @@ export function registerNewUser(
     name: cleanName,
     role,
     passwordHash: hashPassword(initialPassword),
+    passwordHistory: [],
     createdAt: new Date().toISOString().split('T')[0],
   };
 
@@ -620,18 +774,18 @@ export function adminResetUserPassword(
   targetUserId: string,
   newPassword: string
 ): { success: boolean; error?: string } {
-  if (!newPassword || newPassword.length < 6) {
-    return { success: false, error: 'New password must be at least 6 characters.' };
-  }
-
   const accounts = getStoredAccounts();
   const user = accounts.find((u) => u.id === targetUserId);
   if (!user) {
     return { success: false, error: 'Target user not found.' };
   }
 
-  user.passwordHash = hashPassword(newPassword);
-  user.alternatePasswordHash = undefined;
+  const policy = validatePasswordPolicy(newPassword, user);
+  if (!policy.valid) {
+    return { success: false, error: policy.error };
+  }
+
+  recordPasswordUpdateInUser(user, newPassword);
   saveStoredAccounts(accounts);
 
   return { success: true };
@@ -728,10 +882,6 @@ export function completePasswordReset(
     return { success: false, error: 'Please enter the full 6-digit verification code.' };
   }
 
-  if (!newPasswordInput || newPasswordInput.length < 6) {
-    return { success: false, error: 'New password must contain at least 6 characters.' };
-  }
-
   const raw = sessionStorage.getItem(STORAGE_KEY_RESET_PWD);
   if (!raw) {
     return {
@@ -755,15 +905,19 @@ export function completePasswordReset(
       return { success: false, error: 'Invalid verification code. Please check your email.' };
     }
 
-    // Code is valid! Update password in account
+    // Code is valid! Update password in account with strict policy
     const accounts = getStoredAccounts();
     const user = accounts.find((u) => u.email.toLowerCase() === cleanEmail);
     if (!user) {
       return { success: false, error: 'User account could not be found.' };
     }
 
-    user.passwordHash = hashPassword(newPasswordInput);
-    user.alternatePasswordHash = undefined;
+    const policy = validatePasswordPolicy(newPasswordInput, user);
+    if (!policy.valid) {
+      return { success: false, error: policy.error };
+    }
+
+    recordPasswordUpdateInUser(user, newPasswordInput);
     saveStoredAccounts(accounts);
 
     // Clear reset challenge and reset lockout

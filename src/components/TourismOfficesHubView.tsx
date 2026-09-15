@@ -32,6 +32,7 @@ interface TourismOfficesHubViewProps {
   offices: TourismOffice[];
   flyers: FlyerType[];
   deliveries: DeliveryRecord[];
+  warehouseStockMap?: Record<string, number>;
   onAddDelivery: (newDelivery: Omit<DeliveryRecord, 'id' | 'deliveryRef'>) => DeliveryRecord | void;
   onUpdateDelivery?: (id: string, patch: Partial<DeliveryRecord>) => void;
   onDeleteDelivery?: (id: string) => void;
@@ -44,12 +45,14 @@ interface TourismOfficesHubViewProps {
   onAddOffice?: (newOffice: Omit<TourismOffice, 'id'>) => void;
   onDeleteOffice?: (officeId: string) => void;
   onComposeEmail?: (officeId: string) => void;
+  onOpenAddStock?: (flyerTypeId?: string) => void;
 }
 
 export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
   offices,
   flyers,
   deliveries,
+  warehouseStockMap = {},
   onAddDelivery,
   onUpdateDelivery,
   onDeleteDelivery,
@@ -62,6 +65,7 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
   onAddOffice,
   onDeleteOffice,
   onComposeEmail,
+  onOpenAddStock,
 }) => {
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(offices[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -124,12 +128,21 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
 
   const totalFlyersReceivedByOffice = officeDeliveries.reduce((sum, d) => sum + d.quantityDelivered, 0);
 
-  // Quick Dispatch submit
+  // Quick Dispatch submit with strict warehouse stock dependency
+  const dispatchAvailableStock = warehouseStockMap[dispatchFlyerId] ?? 0;
+  const isDispatchStockDepleted = dispatchAvailableStock <= 0;
+  const isDispatchStockInsufficient = dispatchQty > dispatchAvailableStock;
+  const isDispatchDisabled = isDispatchStockDepleted || isDispatchStockInsufficient || dispatchQty <= 0;
+
   const handleCreateOfficeDelivery = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeOffice || !dispatchFlyerId) return;
 
-    const clampedQty = Math.max(1, Math.min(1000000, Number(dispatchQty) || 1));
+    const clampedQty = Math.max(1, Number(dispatchQty) || 1);
+    if (clampedQty > dispatchAvailableStock || isDispatchStockDepleted) {
+      return;
+    }
+
     const qrToken = generateDeliveryQRToken(`DEL-${Date.now().toString().slice(-4)}`, activeOffice.code);
 
     const createdRecord = onAddDelivery({
@@ -829,7 +842,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2">
-                  <label className="block font-semibold text-slate-800 mb-1">Flyer Publication Material *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-800">Flyer Publication Material *</label>
+                    <span className="text-[11px] font-bold">
+                      Stock in Central Warehouse:{' '}
+                      <span className={dispatchAvailableStock <= 0 ? 'text-red-600' : 'text-emerald-700'}>
+                        {dispatchAvailableStock.toLocaleString()} un.
+                      </span>
+                    </span>
+                  </div>
                   <select
                     value={dispatchFlyerId}
                     onChange={(e) => setDispatchFlyerId(e.target.value)}
@@ -858,43 +879,88 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                 <div className="lg:col-span-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-semibold text-slate-800">
-                      Amount of Flyers to Distribute (Qty) *
+                      Amount of Flyers to Distribute (Warehouse Stock Dependent) *
                     </label>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      1 a 1.000.000 un. (Gratuito &bull; Sem Custos)
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                      Max Available: {dispatchAvailableStock.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000000}
-                      step={1}
-                      value={dispatchQty}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        setDispatchQty(Math.max(1, Math.min(1000000, val)));
-                      }}
-                      className="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-900 font-black text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      required
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      {[500, 1000, 5000, 10000, 25000, 50000, 100000, 500000, 1000000].map((preset) => (
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={Math.max(1, dispatchAvailableStock)}
+                        step={1}
+                        value={dispatchQty}
+                        disabled={isDispatchStockDepleted}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setDispatchQty(val);
+                        }}
+                        className={`w-full border rounded px-2.5 py-1.5 bg-white font-black text-sm focus:outline-none focus:ring-1 ${
+                          isDispatchStockInsufficient || isDispatchStockDepleted
+                            ? 'border-red-500 text-red-700 bg-red-50/40'
+                            : 'border-slate-300 text-slate-900 focus:ring-emerald-500'
+                        }`}
+                        required
+                      />
+                      {dispatchAvailableStock > 0 && (
                         <button
                           type="button"
-                          key={preset}
-                          onClick={() => setDispatchQty(preset)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
-                            dispatchQty === preset
-                              ? 'bg-emerald-700 text-white border-emerald-800'
-                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                          }`}
+                          onClick={() => setDispatchQty(dispatchAvailableStock)}
+                          className="absolute right-2 px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300 cursor-pointer"
                         >
-                          {preset.toLocaleString()}
+                          Max Stock
                         </button>
-                      ))}
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {[500, 1000, 2500, 5000, 10000, 25000].map((preset) => {
+                        const isDisabled = dispatchAvailableStock > 0 && preset > dispatchAvailableStock;
+                        return (
+                          <button
+                            type="button"
+                            key={preset}
+                            disabled={isDisabled || isDispatchStockDepleted}
+                            onClick={() => setDispatchQty(preset)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                              isDisabled || isDispatchStockDepleted
+                                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed line-through'
+                                : dispatchQty === preset
+                                ? 'bg-emerald-700 text-white border-emerald-800 cursor-pointer'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 cursor-pointer'
+                            }`}
+                          >
+                            {preset.toLocaleString()}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {isDispatchStockDepleted ? (
+                    <div className="mt-1.5 p-2 rounded bg-red-100 text-red-800 text-[11px] font-medium flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                        <span>Warehouse stock is 0. Deliveries must be sent from central stock.</span>
+                      </div>
+                      {onOpenAddStock && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenAddStock(dispatchFlyerId)}
+                          className="shrink-0 px-2 py-0.5 rounded bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] cursor-pointer"
+                        >
+                          + Receive Print Batch
+                        </button>
+                      )}
+                    </div>
+                  ) : isDispatchStockInsufficient ? (
+                    <div className="mt-1.5 p-2 rounded bg-amber-100 text-amber-900 text-[11px] font-medium flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Exceeds warehouse balance ({dispatchAvailableStock.toLocaleString()} available). Please reduce quantity.</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>
@@ -935,7 +1001,12 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                    disabled={isDispatchDisabled}
+                    className={`px-4 py-1.5 rounded font-bold shadow-xs flex items-center gap-1.5 ${
+                      isDispatchDisabled
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer'
+                    }`}
                   >
                     <Check className="w-4 h-4" />
                     <span>Create Delivery Dispatch</span>

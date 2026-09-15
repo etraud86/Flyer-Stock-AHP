@@ -47,23 +47,83 @@ import { computeOfficeFlyerMetrics, computeWarehouseStock, TODAY_STR } from './u
 import { CheckCircle } from 'lucide-react';
 
 const STORAGE_KEYS = {
-  FLYERS: 'flyerstock_flyers_v2',
-  OFFICES: 'flyerstock_offices_v2',
-  DELIVERIES: 'flyerstock_deliveries_v2',
-  BATCHES: 'flyerstock_batches_v2',
-  FAIRS: 'flyerstock_fairs_v2',
-  OTHER_DELIVERIES: 'flyerstock_other_deliveries_v2',
+  FLYERS: 'flyerstock_clean_prod_v6',
+  OFFICES: 'flyerstock_clean_offices_prod_v6',
+  DELIVERIES: 'flyerstock_clean_deliveries_prod_v6',
+  BATCHES: 'flyerstock_clean_batches_prod_v6',
+  FAIRS: 'flyerstock_clean_fairs_prod_v6',
+  OTHER_DELIVERIES: 'flyerstock_clean_other_deliveries_prod_v6',
 };
 
+// Known demo flyer identifiers to purge completely
+const DEMO_FLYER_SKUS = new Set([
+  'AHP-MAP-01',
+  'AHP-GAS-02',
+  'AHP-GR22-03',
+  'AHP-JUD-04',
+  'AHP-FAM-05',
+  'AHP-NAT-06',
+]);
+const DEMO_FLYER_IDS = new Set([
+  'flyer-1',
+  'flyer-2',
+  'flyer-3',
+  'flyer-4',
+  'flyer-5',
+  'flyer-6',
+  'flyer-custom-fallback',
+]);
+
+const isDemoFlyer = (f: FlyerType) =>
+  DEMO_FLYER_IDS.has(f.id) ||
+  DEMO_FLYER_SKUS.has(f.sku) ||
+  (f.sku && f.sku.startsWith('AHP-DEMO'));
+
 export default function App() {
-  // Load persistent state or fallback to rich initial data
+  // Purge legacy demo storage keys to guarantee a 100% clean application slate
+  useEffect(() => {
+    const legacyKeys = [
+      'flyerstock_clean_flyers_v4',
+      'flyerstock_clean_deliveries_v4',
+      'flyerstock_clean_batches_v4',
+      'flyerstock_clean_fairs_v4',
+      'flyerstock_clean_other_deliveries_v4',
+      'flyerstock_clean_flyers_v5',
+      'flyerstock_clean_deliveries_v5',
+      'flyerstock_clean_batches_v5',
+      'flyerstock_clean_fairs_v5',
+      'flyerstock_clean_other_deliveries_v5',
+      'flyerstock_flyers_v3',
+      'flyerstock_deliveries_v3',
+    ];
+    legacyKeys.forEach((k) => localStorage.removeItem(k));
+  }, []);
+
+  // Load persistent state or fallback to clean initial data
   const [flyers, setFlyers] = useState<FlyerType[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.FLYERS);
-    return saved ? JSON.parse(saved) : INITIAL_FLYER_TYPES;
+    if (!saved) return INITIAL_FLYER_TYPES;
+    try {
+      const parsed: FlyerType[] = JSON.parse(saved);
+      const filtered = parsed.filter((f) => !isDemoFlyer(f));
+      if (filtered.length === 0) return INITIAL_FLYER_TYPES;
+      return filtered.map((f) => {
+        // Guarantee that Roteiro (AHP-ROT-45) or any flyer initialized with 10,000 has its central warehouse stock set
+        if (f.sku === 'AHP-ROT-45' || f.name?.toLowerCase().includes('roteiro')) {
+          return {
+            ...f,
+            warehouseStock: f.warehouseStock && f.warehouseStock > 0 ? f.warehouseStock : 10000,
+          };
+        }
+        return f;
+      });
+    } catch {
+      return INITIAL_FLYER_TYPES;
+    }
   });
 
   const [offices, setOffices] = useState<TourismOffice[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OFFICES);
+    const saved = localStorage.getItem(STORAGE_KEYS.OFFICES) || localStorage.getItem('flyerstock_offices_v2');
     const parsed: TourismOffice[] = saved ? JSON.parse(saved) : INITIAL_OFFICES;
     const hqExists = parsed.some((o) => o.id === 'off-headquarters-ahp' || o.name.toLowerCase().includes('headquarters'));
     if (!hqExists) {
@@ -77,28 +137,47 @@ export default function App() {
 
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.DELIVERIES);
-    const parsed: DeliveryRecord[] = saved ? JSON.parse(saved) : INITIAL_DELIVERIES;
-    const hasHqDeliveries = parsed.some((d) => d.officeId === 'off-headquarters-ahp');
-    if (!hasHqDeliveries) {
-      const hqDeliveries = INITIAL_DELIVERIES.filter((d) => d.officeId === 'off-headquarters-ahp');
-      return [...parsed, ...hqDeliveries];
+    if (!saved) return [];
+    try {
+      const parsed: DeliveryRecord[] = JSON.parse(saved);
+      return parsed.filter((d) => !DEMO_FLYER_IDS.has(d.flyerTypeId));
+    } catch {
+      return [];
     }
-    return parsed;
   });
 
   const [batches, setBatches] = useState<StockInBatch[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BATCHES);
-    return saved ? JSON.parse(saved) : INITIAL_BATCHES;
+    if (!saved) return INITIAL_BATCHES;
+    try {
+      const parsed: StockInBatch[] = JSON.parse(saved);
+      const filtered = parsed.filter((b) => !DEMO_FLYER_IDS.has(b.flyerTypeId));
+      return filtered.length > 0 ? filtered : INITIAL_BATCHES;
+    } catch {
+      return INITIAL_BATCHES;
+    }
   });
 
   const [fairs, setFairs] = useState<TourismFair[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.FAIRS);
-    return saved ? JSON.parse(saved) : INITIAL_FAIRS;
+    if (!saved) return [];
+    try {
+      const parsed: TourismFair[] = JSON.parse(saved);
+      return parsed.filter((f) => !f.items?.some((it) => DEMO_FLYER_IDS.has(it.flyerTypeId)));
+    } catch {
+      return [];
+    }
   });
 
   const [otherDeliveries, setOtherDeliveries] = useState<OtherDeliveryRecord[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.OTHER_DELIVERIES);
-    return saved ? JSON.parse(saved) : INITIAL_OTHER_DELIVERIES;
+    if (!saved) return [];
+    try {
+      const parsed: OtherDeliveryRecord[] = JSON.parse(saved);
+      return parsed.filter((od) => !DEMO_FLYER_IDS.has(od.flyerTypeId));
+    } catch {
+      return [];
+    }
   });
 
   // User customizations for depletion, burn rates, and time lapses
@@ -244,6 +323,41 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
   }, [otherDeliveries]);
 
+  // Keep warehouse stock batches strictly connected to registered flyer materials
+  useEffect(() => {
+    if (flyers.length === 0) return;
+
+    let batchesChanged = false;
+    let nextBatches = [...batches];
+
+    flyers.forEach((f) => {
+      const fBatches = nextBatches.filter((b) => b.flyerTypeId === f.id);
+      const totalBatchQty = fBatches.reduce((acc, b) => acc + b.quantity, 0);
+      const targetBaseStock =
+        f.sku === 'AHP-ROT-45' || f.name?.toLowerCase().includes('roteiro')
+          ? Math.max(f.warehouseStock || 0, 10000)
+          : f.warehouseStock || 0;
+
+      if (totalBatchQty === 0 && targetBaseStock > 0) {
+        const padNum = (nextBatches.length + 1).toString().padStart(3, '0');
+        nextBatches.push({
+          id: `bat-auto-${f.id}`,
+          batchRef: `PO-2026-PRINT-${padNum}`,
+          date: TODAY_STR,
+          flyerTypeId: f.id,
+          quantity: targetBaseStock,
+          printerName: 'Lote Central AHP - Gráfica Oficial',
+          unitCost: f.unitCost || 0.16,
+        });
+        batchesChanged = true;
+      }
+    });
+
+    if (batchesChanged) {
+      setBatches(nextBatches);
+    }
+  }, [flyers, batches]);
+
   // Keep server synchronized with the current deliveries list for cross-device visibility
   useEffect(() => {
     if (deliveries && deliveries.length > 0) {
@@ -381,11 +495,21 @@ export default function App() {
 
   // Handlers
   const handleOpenNewDelivery = (officeId?: string, flyerTypeId?: string, defaultQty?: number) => {
+    if (flyers.length === 0) {
+      showToast('Please add your first flyer publication to start recording deliveries.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     setDeliveryPreselect({ officeId, flyerTypeId, qty: defaultQty });
     setIsDeliveryModalOpen(true);
   };
 
   const handleOpenAddStock = (flyerTypeId?: string) => {
+    if (flyers.length === 0) {
+      showToast('Please add your first flyer publication to start receiving warehouse stock batches.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     setStockInPreselectFlyer(flyerTypeId);
     setIsStockInModalOpen(true);
   };
@@ -440,9 +564,22 @@ export default function App() {
     showToast(`Removed "${office?.name || officeId}" from directory.`);
   };
 
+  const DEFAULT_FALLBACK_FLYER: FlyerType = {
+    id: 'flyer-custom-fallback',
+    sku: 'AHP-MAT-01',
+    name: 'Material Promocional AHP',
+    category: 'Geral',
+    language: 'Português',
+    warehouseStock: 0,
+    minThreshold: 500,
+    unitCost: 0.15,
+    color: '#059669',
+    description: 'Publicação oficial Aldeias Históricas de Portugal',
+  };
+
   const handleOpenPrintSlip = (delivery: DeliveryRecord, office?: TourismOffice, flyer?: FlyerType) => {
     const targetOffice = office || offices.find((o) => o.id === delivery.officeId) || offices[0];
-    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0];
+    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0] || DEFAULT_FALLBACK_FLYER;
     setArchiveSlipDelivery(delivery);
     setArchiveSlipOffice(targetOffice);
     setArchiveSlipFlyer(targetFlyer);
@@ -452,11 +589,12 @@ export default function App() {
   const handleOpenSignatureModal = (
     delivery: DeliveryRecord,
     office: TourismOffice,
-    flyer: FlyerType
+    flyer?: FlyerType
   ) => {
+    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0] || DEFAULT_FALLBACK_FLYER;
     setSignatureDelivery(delivery);
     setSignatureOffice(office);
-    setSignatureFlyer(flyer);
+    setSignatureFlyer(targetFlyer);
     setIsSignatureModalOpen(true);
   };
 
@@ -632,6 +770,22 @@ export default function App() {
   };
 
   const handleCreateDelivery = (newDelivery: Omit<DeliveryRecord, 'id' | 'deliveryRef'>) => {
+    // Strict warehouse stock dependency check
+    const availableStock = warehouseStockMap[newDelivery.flyerTypeId] ?? 0;
+    const flyer = flyers.find((f) => f.id === newDelivery.flyerTypeId);
+    if (availableStock <= 0) {
+      showToast(
+        `Cannot dispatch: Central warehouse stock is depleted (0 available for "${flyer?.name || 'this flyer'}"). Receive a print batch first.`
+      );
+      return;
+    }
+    if (newDelivery.quantityDelivered > availableStock) {
+      showToast(
+        `Cannot dispatch: Requested ${newDelivery.quantityDelivered.toLocaleString()} units exceeds central warehouse balance (${availableStock.toLocaleString()} available).`
+      );
+      return;
+    }
+
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const dateFormatted = newDelivery.date.replace(/-/g, '').slice(4);
     const deliveryRef = `DEL-2026-${dateFormatted}-${padNum}`;
@@ -645,9 +799,8 @@ export default function App() {
     setDeliveries((prev) => [createdRecord, ...prev]);
 
     const office = offices.find((o) => o.id === newDelivery.officeId);
-    const flyer = flyers.find((f) => f.id === newDelivery.flyerTypeId);
     showToast(
-      `Dispatched ${newDelivery.quantityDelivered.toLocaleString()} "${flyer?.name}" flyers to ${office?.name}!`
+      `Dispatched ${newDelivery.quantityDelivered.toLocaleString()} "${flyer?.name}" flyers from warehouse to ${office?.name}!`
     );
     return createdRecord;
   };
@@ -670,6 +823,33 @@ export default function App() {
     );
   };
 
+  const handleQuickReceiveStock = (flyerTypeId: string, quantity: number = 10000) => {
+    const flyer = flyers.find((f) => f.id === flyerTypeId);
+    const batchNum = (batches.length + 1).toString().padStart(3, '0');
+    const batchRef = `PO-2026-PRINT-${batchNum}`;
+
+    const newBatch: StockInBatch = {
+      id: `bat-quick-${Date.now()}`,
+      batchRef,
+      date: TODAY_STR,
+      flyerTypeId,
+      quantity,
+      printerName: 'Lote Central AHP - Gráfica Oficial',
+      unitCost: flyer?.unitCost || 0.16,
+    };
+
+    setBatches((prev) => [...prev, newBatch]);
+
+    // Also ensure the flyer object itself has its warehouseStock updated
+    setFlyers((prev) =>
+      prev.map((f) => (f.id === flyerTypeId ? { ...f, warehouseStock: (f.warehouseStock || 0) + quantity } : f))
+    );
+
+    showToast(
+      `Received ${quantity.toLocaleString()} units of "${flyer?.name || 'Flyer'}" into central warehouse stock!`
+    );
+  };
+
   const handleRecordDepletion = (deliveryId: string, depletedDate: string) => {
     setDeliveries((prev) =>
       prev.map((d) => (d.id === deliveryId ? { ...d, depletedDate } : d))
@@ -685,12 +865,24 @@ export default function App() {
   };
 
   const handleAddFair = (newFair: Omit<TourismFair, 'id'>) => {
+    // Strict warehouse stock dependency check for all fair items
+    for (const item of newFair.items) {
+      const available = warehouseStockMap[item.flyerTypeId] ?? 0;
+      if (item.quantitySpent > available) {
+        const fl = flyers.find((f) => f.id === item.flyerTypeId);
+        showToast(
+          `Cannot log tourism fair: Material "${fl?.name || item.flyerTypeId}" spent quantity (${item.quantitySpent.toLocaleString()}) exceeds warehouse balance (${available.toLocaleString()} available).`
+        );
+        return;
+      }
+    }
+
     const created: TourismFair = {
       ...newFair,
       id: `fair-${Date.now()}`,
     };
     setFairs((prev) => [created, ...prev]);
-    showToast(`Recorded fair "${created.name}" with ${created.totalFlyersSpent.toLocaleString()} flyers spent!`);
+    showToast(`Recorded fair "${created.name}" with ${created.totalFlyersSpent.toLocaleString()} flyers spent from warehouse!`);
   };
 
   const handleDeleteFair = (id: string) => {
@@ -699,6 +891,22 @@ export default function App() {
   };
 
   const handleAddOtherDelivery = (newRecord: Omit<OtherDeliveryRecord, 'id'>) => {
+    // Strict warehouse stock dependency check
+    const available = warehouseStockMap[newRecord.flyerTypeId] ?? 0;
+    const flyer = flyers.find((f) => f.id === newRecord.flyerTypeId);
+    if (available <= 0) {
+      showToast(
+        `Cannot dispatch: Central warehouse stock is depleted (0 available for "${flyer?.name || 'this flyer'}").`
+      );
+      return;
+    }
+    if (newRecord.quantity > available) {
+      showToast(
+        `Cannot dispatch: Requested ${newRecord.quantity.toLocaleString()} units exceeds warehouse balance (${available.toLocaleString()} available).`
+      );
+      return;
+    }
+
     const padNum = (otherDeliveries.length + 1).toString().padStart(3, '0');
     const created: OtherDeliveryRecord = {
       ...newRecord,
@@ -706,8 +914,7 @@ export default function App() {
       ref: `OD-2026-${padNum}`,
     };
     setOtherDeliveries((prev) => [created, ...prev]);
-    const flyer = flyers.find((f) => f.id === newRecord.flyerTypeId);
-    showToast(`Logged delivery "${newRecord.title}" (${newRecord.quantity.toLocaleString()} ${flyer?.name})!`);
+    showToast(`Logged delivery "${newRecord.title}" (${newRecord.quantity.toLocaleString()} ${flyer?.name} from warehouse)!`);
   };
 
   const handleDeleteOtherDelivery = (id: string) => {
@@ -741,6 +948,11 @@ export default function App() {
   };
 
   const handleAddDeliveryDirectRow = () => {
+    if (flyers.length === 0) {
+      showToast('Please add at least one flyer publication before creating delivery rows.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const newDelivery: DeliveryRecord = {
       id: `del-${Date.now()}`,
@@ -794,14 +1006,13 @@ export default function App() {
   };
 
   const handleResetDemoData = () => {
-    if (window.confirm('Reset all flyers, deliveries, tourism fairs, and non-circuit records back to sample demo state?')) {
-      setFlyers(INITIAL_FLYER_TYPES);
-      setOffices(INITIAL_OFFICES);
-      setDeliveries(INITIAL_DELIVERIES);
-      setBatches(INITIAL_BATCHES);
-      setFairs(INITIAL_FAIRS);
-      setOtherDeliveries(INITIAL_OTHER_DELIVERIES);
-      showToast('Reset to default demonstration data.');
+    if (window.confirm('Reset application to a clean slate (empty flyers and records ready for your data)?')) {
+      setFlyers([]);
+      setDeliveries([]);
+      setBatches([]);
+      setFairs([]);
+      setOtherDeliveries([]);
+      showToast('Application reset to a clean state. Ready for your flyer information!');
     }
   };
 
@@ -838,44 +1049,55 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    <div
+      id="main-app-shell"
+      className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white"
+    >
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div
+          id="main-app-toast"
+          className="fixed bottom-5 right-5 z-50 bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200 print:hidden"
+        >
           <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Main Top Navigation */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenNewDelivery={() => handleOpenNewDelivery()}
-        onOpenAddStock={() => handleOpenAddStock()}
-        onOpenDepletionModal={() => handleOpenDepletionModal()}
-        onOpenEmailModal={() => handleOpenEmailModal()}
-        onOpenUploadExcel={handleOpenUploadExcel}
-        onOpenAddFlyer={handleOpenAddFlyer}
-        onOpenOfficesDirectory={handleOpenOfficesDirectory}
-        onResetDemoData={handleResetDemoData}
-        currentUser={session.user}
-        onLogout={handleLogout}
-        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
-        onOpenUserManagement={handleOpenUserManagement}
-        flyers={flyers}
-        offices={offices}
-        deliveries={deliveries}
-        batches={batches}
-        fairs={fairs}
-        otherDeliveries={otherDeliveries}
-        depletedCount={depletedCount}
-        criticalCount={criticalCount}
-        metricOverrides={metricOverrides}
-      />
+      <div id="main-app-navbar" className="print:hidden">
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenNewDelivery={() => handleOpenNewDelivery()}
+          onOpenAddStock={() => handleOpenAddStock()}
+          onOpenDepletionModal={() => handleOpenDepletionModal()}
+          onOpenEmailModal={() => handleOpenEmailModal()}
+          onOpenUploadExcel={handleOpenUploadExcel}
+          onOpenAddFlyer={handleOpenAddFlyer}
+          onOpenOfficesDirectory={handleOpenOfficesDirectory}
+          onResetDemoData={handleResetDemoData}
+          currentUser={session.user}
+          onLogout={handleLogout}
+          onOpenChangePassword={() => handleOpenUserManagement('change_password')}
+          onOpenUserManagement={handleOpenUserManagement}
+          flyers={flyers}
+          offices={offices}
+          deliveries={deliveries}
+          batches={batches}
+          fairs={fairs}
+          otherDeliveries={otherDeliveries}
+          depletedCount={depletedCount}
+          criticalCount={criticalCount}
+          metricOverrides={metricOverrides}
+        />
+      </div>
 
       {/* Main View Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-1 w-full pb-10">
+      <main
+        id="main-app-content"
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-1 w-full pb-10 print:hidden"
+      >
         {activeTab === 'dashboard' && (
           <DashboardView
             flyers={flyers}
@@ -970,6 +1192,7 @@ export default function App() {
             offices={offices}
             flyers={flyers}
             deliveries={deliveries}
+            warehouseStockMap={warehouseStockMap}
             onAddDelivery={handleCreateDelivery}
             onUpdateDelivery={handleUpdateDelivery}
             onDeleteDelivery={handleDeleteDelivery}
@@ -983,19 +1206,22 @@ export default function App() {
             onAddOffice={handleAddOffice}
             onDeleteOffice={handleDeleteOffice}
             onComposeEmail={handleOpenEmailModal}
+            onOpenAddStock={handleOpenAddStock}
           />
         )}
       </main>
 
       {/* Black Base Institutional Footer with Official Castle Logo & Metrics */}
-      <Footer
-        currentUser={session.user}
-        onLogout={handleLogout}
-        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
-        flyers={flyers}
-        offices={offices}
-        deliveries={deliveries}
-      />
+      <div id="main-app-footer" className="print:hidden">
+        <Footer
+          currentUser={session.user}
+          onLogout={handleLogout}
+          onOpenChangePassword={() => handleOpenUserManagement('change_password')}
+          flyers={flyers}
+          offices={offices}
+          deliveries={deliveries}
+        />
+      </div>
 
       {/* Modals */}
       <DeliveryModal
@@ -1008,6 +1234,7 @@ export default function App() {
         preselectedFlyerTypeId={deliveryPreselect.flyerTypeId}
         defaultQty={deliveryPreselect.qty}
         warehouseStockMap={warehouseStockMap}
+        onQuickReceiveStock={handleQuickReceiveStock}
       />
 
       <StockInModal

@@ -1,13 +1,8 @@
 import React from 'react';
 import {
   ShieldCheck,
-  Building2,
-  Package,
-  Truck,
   KeyRound,
   LogOut,
-  Layers,
-  Lock,
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
@@ -17,74 +12,18 @@ interface FooterProps {
   currentUser?: AuthUser | null;
   onLogout?: () => void;
   onOpenChangePassword?: () => void;
-  flyers: FlyerType[];
-  offices: TourismOffice[];
-  deliveries: DeliveryRecord[];
+  flyers?: FlyerType[];
+  offices?: TourismOffice[];
+  deliveries?: DeliveryRecord[];
 }
 
 export const Footer: React.FC<FooterProps> = ({
   currentUser,
   onLogout,
   onOpenChangePassword,
-  flyers,
-  offices,
-  deliveries,
 }) => {
-  const totalStock = flyers.reduce((acc, f) => acc + (f.availableStock || 0), 0);
-  const totalDispatched = deliveries.reduce(
-    (acc, d) => acc + (d.quantityDelivered || 0),
-    0
-  );
-
   return (
     <footer className="w-full bg-neutral-950 text-neutral-300 border-t border-neutral-800/80 mt-auto transition-colors">
-      {/* Top statistics & quick summary strip */}
-      <div className="border-b border-neutral-900 px-4 sm:px-6 lg:px-8 py-3.5 bg-neutral-950/60">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs">
-          {/* Brand Emblem & Association */}
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-white flex items-center justify-center shadow-inner">
-              <AHPCasteloIcon className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="font-bold text-white text-xs tracking-tight">
-                Aldeias Históricas de Portugal
-              </p>
-              <p className="text-[11px] text-neutral-400 font-medium">
-                1 Destination That Is 12 &bull; Tourism Logistics &amp; Promotional Network
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Metrics Badges */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px]">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-900/90 border border-neutral-800 text-neutral-300">
-              <Package className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Total Warehouse Stock:</span>
-              <strong className="text-white font-mono">{totalStock.toLocaleString()}</strong>
-            </div>
-
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-900/90 border border-neutral-800 text-neutral-300">
-              <Building2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>Active Offices:</span>
-              <strong className="text-white font-mono">{offices.length}</strong>
-            </div>
-
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-900/90 border border-neutral-800 text-neutral-300">
-              <Truck className="w-3.5 h-3.5 text-amber-400" />
-              <span>Flyers Dispatched:</span>
-              <strong className="text-white font-mono">{totalDispatched.toLocaleString()}</strong>
-            </div>
-
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-900/90 border border-neutral-800 text-neutral-300">
-              <Layers className="w-3.5 h-3.5 text-purple-400" />
-              <span>Catalog Materials:</span>
-              <strong className="text-white font-mono">{flyers.length}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Base Footer Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-neutral-400">

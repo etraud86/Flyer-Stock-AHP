@@ -40,7 +40,16 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    document.body.classList.add('printing-delivery-slip-active');
+    const cleanup = () => {
+      document.body.classList.remove('printing-delivery-slip-active');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      window.print();
+      setTimeout(cleanup, 1200);
+    }, 60);
   };
 
   const signatureCode =
@@ -48,8 +57,14 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
     `SIG-AHP-${office.code}-${delivery.deliveryRef.replace(/[^A-Z0-9]/gi, '').slice(-4)}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto flex flex-col max-h-[95vh] print:max-h-none print:shadow-none print:border-none print:w-full print:max-w-none">
+    <div
+      id="printable-delivery-modal-backdrop"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto print:p-0 print:m-0 print:bg-white print:static print:overflow-visible"
+    >
+      <div
+        id="printable-delivery-modal-card"
+        className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-auto flex flex-col max-h-[95vh] print:max-h-none print:shadow-none print:border-none print:w-full print:max-w-none print:m-0 print:p-0"
+      >
         {/* Top Control Bar (Hidden during print) */}
         <div className="flex flex-wrap items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-neutral-950 text-white shrink-0 gap-2 print:hidden">
           <div className="flex items-center gap-3">
@@ -102,11 +117,11 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
         </div>
 
         {/* Printable Voucher Body (A4 Style) */}
-        <div id="printable-delivery-slip" className="p-8 sm:p-10 overflow-y-auto flex-1 bg-white print:p-6 print:overflow-visible">
+        <div id="printable-delivery-slip" className="p-8 sm:p-10 overflow-y-auto flex-1 bg-white print:p-0 print:overflow-visible">
           {/* Institutional Header */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b-2 border-slate-900 pb-5 mb-6 gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b-2 border-slate-900 pb-5 mb-6 print:pb-2.5 print:mb-2.5 gap-4">
             <div className="flex items-start gap-4">
-              <AHPLogo className="h-12 w-auto object-contain shrink-0" />
+              <AHPLogo className="h-12 w-auto object-contain shrink-0 print:h-10" />
               <div>
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase">
                   Aldeias Históricas de Portugal
@@ -134,7 +149,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
           </div>
 
           {/* Institutional Co-Financing Bar */}
-          <div className="mb-6 py-2 px-3 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="mb-6 print:mb-2.5 py-2 print:py-1 px-3 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2">
             <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
               Financiamento &bull; Estratégia PROVERE &bull; Centro 2030
             </span>
@@ -142,9 +157,9 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
           </div>
 
           {/* Office and Dispatch Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:gap-2.5 mb-6 print:mb-2.5">
             {/* Recipient Tourism Office */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="p-4 print:p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                 Posto de Turismo Destinatário
               </span>
@@ -168,7 +183,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
             </div>
 
             {/* Logistics & Dispatch Info */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <div className="p-4 print:p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
                 Logística &amp; Transporte
               </span>
@@ -194,7 +209,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
           </div>
 
           {/* Delivered Materials Manifest */}
-          <div className="mb-6">
+          <div className="mb-6 print:mb-2.5">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 Materiais Promocionais Entregues
@@ -207,35 +222,35 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
             <table className="w-full border-collapse border border-slate-300 text-left text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-300">
-                  <th className="py-2.5 px-3 border-r border-slate-300">SKU</th>
-                  <th className="py-2.5 px-3 border-r border-slate-300">Título / Publicação</th>
-                  <th className="py-2.5 px-3 border-r border-slate-300">Idioma</th>
-                  <th className="py-2.5 px-3 text-right">Quantidade Entregue</th>
+                  <th className="py-2 px-3 print:py-1 print:px-2 border-r border-slate-300">SKU</th>
+                  <th className="py-2 px-3 print:py-1 print:px-2 border-r border-slate-300">Título / Publicação</th>
+                  <th className="py-2 px-3 print:py-1 print:px-2 border-r border-slate-300">Idioma</th>
+                  <th className="py-2 px-3 print:py-1 print:px-2 text-right">Quantidade Entregue</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-slate-300 bg-white">
-                  <td className="py-3 px-3 font-mono font-bold text-slate-900 border-r border-slate-300">
+                  <td className="py-2.5 px-3 print:py-1.5 print:px-2 font-mono font-bold text-slate-900 border-r border-slate-300">
                     {flyer.sku}
                   </td>
-                  <td className="py-3 px-3 font-semibold text-slate-900 border-r border-slate-300">
+                  <td className="py-2.5 px-3 print:py-1.5 print:px-2 font-semibold text-slate-900 border-r border-slate-300">
                     {flyer.name}
                     <span className="block text-[10px] font-normal text-slate-500">{flyer.category}</span>
                   </td>
-                  <td className="py-3 px-3 text-slate-700 border-r border-slate-300">
+                  <td className="py-2.5 px-3 print:py-1.5 print:px-2 text-slate-700 border-r border-slate-300">
                     {flyer.language}
                   </td>
-                  <td className="py-3 px-3 text-right font-black text-sm text-slate-900">
+                  <td className="py-2.5 px-3 print:py-1.5 print:px-2 text-right font-black text-sm text-slate-900">
                     {delivery.quantityDelivered.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">unidades</span>
                   </td>
                 </tr>
               </tbody>
               <tfoot>
                 <tr className="bg-slate-50 font-bold border-t-2 border-slate-300">
-                  <td colSpan={3} className="py-2 px-3 text-right text-slate-700 border-r border-slate-300 uppercase text-[10px]">
+                  <td colSpan={3} className="py-1.5 px-3 print:py-1 print:px-2 text-right text-slate-700 border-r border-slate-300 uppercase text-[10px]">
                     Total de Unidades Recebidas:
                   </td>
-                  <td className="py-2 px-3 text-right text-base font-black text-emerald-800">
+                  <td className="py-1.5 px-3 print:py-1 print:px-2 text-right text-base font-black text-emerald-800">
                     {delivery.quantityDelivered.toLocaleString()} unidades
                   </td>
                 </tr>
@@ -244,22 +259,22 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
           </div>
 
           {/* OFFICIAL RECEIPT & DIGITAL SIGNATURE CERTIFICATE */}
-          <div className="border-2 border-slate-900 rounded-xl p-5 bg-slate-50/70 mb-6 relative overflow-hidden">
+          <div className="border-2 border-slate-900 rounded-xl p-5 print:p-3 bg-slate-50/70 mb-6 print:mb-2.5 relative overflow-hidden">
             <div className="absolute -right-8 -bottom-8 w-44 h-44 text-slate-900 opacity-[0.05] pointer-events-none print:opacity-[0.07]">
               <AHPCasteloIcon className="w-full h-full" />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 relative z-10">
-              <div className="space-y-2 text-left flex-1">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 print:gap-4 relative z-10">
+              <div className="space-y-2 print:space-y-1 text-left flex-1">
                 <div className="flex items-center gap-2">
                   {isConfirmed ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                       AUTO DE RECEÇÃO VALIDADO &bull; ASSINATURA REGISTADA
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                      <AlertCircle className="w-4 h-4 text-amber-700" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-700" />
                       AGUARDA ASSINATURA DIGITAL NO TABLET OU PC
                     </span>
                   )}
@@ -271,7 +286,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
                   <strong className="text-slate-900">{office.name}</strong>.
                 </p>
 
-                <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+                <div className="bg-white p-2.5 print:p-2 rounded-lg border border-slate-200 text-xs space-y-1">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Posto de Turismo Recetor:</span>
                     <span className="font-bold text-slate-900">{office.name} ({office.code})</span>
@@ -298,7 +313,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
               </div>
 
               {/* Signature Visual Block */}
-              <div className="w-64 shrink-0 bg-white p-3 rounded-xl border border-slate-300 shadow-xs flex flex-col items-center justify-center text-center min-h-[140px]">
+              <div className="w-64 shrink-0 bg-white p-3 print:p-2 rounded-xl border border-slate-300 shadow-xs flex flex-col items-center justify-center text-center min-h-[130px] print:min-h-[110px]">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
                   Rubrica do Destinatário
                 </span>
@@ -352,7 +367,7 @@ export const PrintableDeliveryArchiveModal: React.FC<PrintableDeliveryArchiveMod
           </div>
 
           {/* Simple Signatures Dual Footer */}
-          <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-300 text-center text-xs">
+          <div className="grid grid-cols-2 gap-8 print:gap-4 pt-4 print:pt-2 border-t border-slate-300 text-center text-xs">
             <div>
               <div className="h-10 flex items-center justify-center">
                 <span className="font-serif italic text-slate-800 font-bold">{delivery.courier}</span>

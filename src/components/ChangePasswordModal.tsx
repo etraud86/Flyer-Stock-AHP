@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, X, CheckCircle2, AlertTriangle, Eye, EyeOff, Shield } from 'lucide-react';
-import { updateAccountPassword } from '../utils/auth';
+import { updateAccountPassword, validatePasswordPolicy, getStoredAccounts } from '../utils/auth';
 import { AuthUser } from '../types';
 import { AHPCasteloIcon } from './AHPLogo';
 
@@ -26,12 +26,16 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   if (!isOpen) return null;
 
+  const currentAccount = getStoredAccounts().find((u) => u.id === user.id);
+  const policy = validatePasswordPolicy(newPassword, currentAccount);
+  const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 6) {
-      setError('New password must contain at least 6 characters.');
+    if (!policy.valid) {
+      setError(policy.error || 'Password does not satisfy the security policy.');
       return;
     }
 
@@ -118,14 +122,16 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">New Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-700">New Password</label>
+              <span className="text-[11px] text-amber-700 font-medium">Requires Capital & Symbol</span>
+            </div>
             <input
               type={showPasswords ? 'text' : 'password'}
               required
-              minLength={6}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
+              placeholder="e.g. AHP@Seguranca2026!"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-slate-900"
             />
           </div>
@@ -135,12 +141,41 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             <input
               type={showPasswords ? 'text' : 'password'}
               required
-              minLength={6}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat new password"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 text-slate-900"
             />
+          </div>
+
+          {/* Real-time Checklist */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <span className="text-slate-600 font-semibold block text-[10px] uppercase tracking-wider">
+              Institutional Password Rules:
+            </span>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+              <div className={`flex items-center gap-1.5 ${policy.hasMinLength ? 'text-emerald-700 font-medium' : 'text-slate-400'}`}>
+                <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasMinLength ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span>Min. 8 characters</span>
+              </div>
+              <div className={`flex items-center gap-1.5 ${policy.hasCapital ? 'text-emerald-700 font-medium' : 'text-slate-400'}`}>
+                <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasCapital ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span>Capital Letter (A-Z)</span>
+              </div>
+              <div className={`flex items-center gap-1.5 ${policy.hasSpecial ? 'text-emerald-700 font-medium' : 'text-slate-400'}`}>
+                <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasSpecial ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span>Special Symbol (!@#$%)</span>
+              </div>
+              <div className={`flex items-center gap-1.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-700 font-medium' : 'text-slate-400'}`}>
+                <CheckCircle2 className={`w-3.5 h-3.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-600' : 'text-slate-300'}`} />
+                <span>No repeat of previous</span>
+              </div>
+            </div>
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <p className="text-amber-700 text-[10px] pt-0.5">
+                ⚠️ Passwords do not match.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-1">
@@ -154,7 +189,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             </button>
             <span className="text-[11px] text-slate-400 flex items-center gap-1">
               <Shield className="w-3 h-3 text-emerald-600" />
-              Local Encryption
+              Secure Salted Hash
             </span>
           </div>
 
@@ -168,8 +203,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={success}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold shadow-xs cursor-pointer disabled:opacity-50"
+              disabled={success || !policy.valid || !passwordsMatch}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               Save New Password
             </button>

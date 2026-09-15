@@ -16,7 +16,7 @@ export interface TourismOffice {
   code: string;
   name: string;
   zone: string;
-  footfallTier: 'High' | 'Medium' | 'Seasonal Peak';
+  footfallTier: 'High' | 'Medium' | 'Low' | 'Seasonal Peak';
   contactPerson: string;
   email: string;
   phone: string;
@@ -96,14 +96,15 @@ export interface TourismFair {
   notes?: string;
 }
 
-// Non-Circuit Deliveries: Guided tours, historical village walk-ins, festivals/events
+// Non-Circuit Deliveries: Guided tours, historical village walk-ins, festivals/events, custom categories
 export type OtherDeliveryCategory =
   | 'guided_tour'
   | 'historical_village_office'
   | 'event'
   | 'school_educational'
   | 'protocol_vip'
-  | 'other';
+  | 'other'
+  | (string & {});
 
 export interface OtherDeliveryRecord {
   id: string;
