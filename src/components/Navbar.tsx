@@ -423,8 +423,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-xs font-bold text-white truncate max-w-[120px]">
                       {currentUser.name || 'AHP Portal'}
                     </p>
-                    <p className="text-[10px] text-neutral-400 font-medium">
-                      {currentUser.role === 'admin' ? 'Administrator' : 'Logistics Operator'}
+                    <p className="text-[10px] text-neutral-400 font-medium capitalize">
+                      {currentUser.role === 'admin'
+                        ? 'Administrator'
+                        : currentUser.role === 'logistics_coordinator'
+                        ? 'Logistics Coordinator'
+                        : currentUser.role === 'manager'
+                        ? 'Regional Manager'
+                        : currentUser.role.replace(/_/g, ' ')}
                     </p>
                   </div>
                 </button>
@@ -440,8 +446,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="px-3.5 py-2.5 border-b border-neutral-800">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-white">{currentUser.name}</span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            {currentUser.role === 'admin' ? 'ADMIN' : 'OPERATOR'}
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            {currentUser.role === 'admin'
+                              ? 'ADMIN'
+                              : currentUser.role === 'logistics_coordinator'
+                              ? 'COORDINATOR'
+                              : currentUser.role.replace(/_/g, ' ')}
                           </span>
                         </div>
                         <p className="text-neutral-400 text-[11px] font-mono mt-0.5">{currentUser.email}</p>

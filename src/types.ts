@@ -171,7 +171,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'logistics_coordinator' | 'manager';
+  role: 'admin' | 'logistics_coordinator' | 'manager' | string;
   lastLogin?: string;
   avatar?: string;
 }

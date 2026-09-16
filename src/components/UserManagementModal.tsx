@@ -70,9 +70,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   // Register User state
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regRole, setRegRole] = useState<'admin' | 'logistics_coordinator' | 'manager'>(
-    'logistics_coordinator'
-  );
+  const [regRole, setRegRole] = useState<string>('logistics_coordinator');
+  const [isCustomRegRole, setIsCustomRegRole] = useState<boolean>(false);
   const [regPassword, setRegPassword] = useState('');
   const [regShowPassword, setRegShowPassword] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
@@ -88,7 +87,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editRole, setEditRole] = useState<'admin' | 'logistics_coordinator' | 'manager'>('logistics_coordinator');
+  const [editRole, setEditRole] = useState<string>('logistics_coordinator');
+  const [isCustomEditRole, setIsCustomEditRole] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
@@ -194,6 +194,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setEditName(user.name);
     setEditEmail(user.email);
     setEditRole(user.role);
+    setIsCustomEditRole(!['admin', 'logistics_coordinator', 'manager'].includes(user.role));
     setEditError(null);
     setEditSuccess(null);
   };
@@ -202,6 +203,31 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setEditingUserId(null);
     setEditError(null);
     setEditSuccess(null);
+  };
+
+  const handleQuickChangeRole = (userId: string, newRole: string) => {
+    const res = updateUserAccount(userId, { role: newRole });
+    if (res.success && res.user) {
+      refreshAccounts();
+      const roleLabel = newRole === 'admin'
+        ? 'Admin'
+        : newRole === 'logistics_coordinator'
+        ? 'Logistics Coordinator'
+        : newRole === 'manager'
+        ? 'Regional Manager'
+        : newRole;
+      onSuccessToast(`Role updated to "${roleLabel}" for ${res.user.name}`);
+      if (currentUser.id === userId && onUserUpdated) {
+        onUserUpdated({
+          id: res.user.id,
+          email: res.user.email,
+          name: res.user.name,
+          role: res.user.role,
+        });
+      }
+    } else {
+      alert(res.error || 'Failed to update account role.');
+    }
   };
 
   const handleSaveUserEdit = (userId: string) => {
@@ -519,18 +545,45 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
               {/* Role Selection */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Account Role *
-                </label>
-                <select
-                  value={regRole}
-                  onChange={(e) => setRegRole(e.target.value as any)}
-                  className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                >
-                  <option value="logistics_coordinator">Logistics Coordinator (Standard)</option>
-                  <option value="admin">Administrator (Full Rights)</option>
-                  <option value="manager">Regional Tourism Manager</option>
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-neutral-300">
+                    Account Role *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomRegRole(!isCustomRegRole)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline"
+                  >
+                    {isCustomRegRole ? 'Choose preset role' : 'Write custom role'}
+                  </button>
+                </div>
+                {isCustomRegRole ? (
+                  <input
+                    type="text"
+                    required
+                    value={regRole}
+                    onChange={(e) => setRegRole(e.target.value)}
+                    placeholder="e.g. Field Supervisor, Regional Auditor, Staff Coordinator"
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                ) : (
+                  <select
+                    value={['admin', 'logistics_coordinator', 'manager'].includes(regRole) ? regRole : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        setIsCustomRegRole(true);
+                      } else {
+                        setRegRole(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="logistics_coordinator">Logistics Coordinator (Standard)</option>
+                    <option value="admin">Administrator (Full Rights)</option>
+                    <option value="manager">Regional Tourism Manager</option>
+                    <option value="custom">Custom Role... (Write any custom title)</option>
+                  </select>
+                )}
               </div>
 
               {/* Password with Generator */}
@@ -668,15 +721,27 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   You
                                 </span>
                               )}
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  acc.role === 'admin'
-                                    ? 'bg-amber-950/80 text-amber-300 border border-amber-800'
-                                    : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                                }`}
-                              >
-                                {acc.role}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <select
+                                  value={acc.role}
+                                  onChange={(e) => handleQuickChangeRole(acc.id, e.target.value)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                                    acc.role === 'admin'
+                                      ? 'bg-amber-950/90 text-amber-300 border-amber-700/80 hover:bg-amber-900/90'
+                                      : acc.role === 'manager'
+                                      ? 'bg-blue-950/90 text-blue-300 border-blue-700/80 hover:bg-blue-900/90'
+                                      : 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90'
+                                  }`}
+                                  title="Click to directly change account role"
+                                >
+                                  <option value="admin" className="bg-neutral-900 text-amber-300 font-bold">Admin (Full Rights)</option>
+                                  <option value="logistics_coordinator" className="bg-neutral-900 text-emerald-300 font-bold">Logistics Coordinator</option>
+                                  <option value="manager" className="bg-neutral-900 text-blue-300 font-bold">Regional Manager</option>
+                                  {!['admin', 'logistics_coordinator', 'manager'].includes(acc.role) && (
+                                    <option value={acc.role} className="bg-neutral-900 text-purple-300 font-bold">{acc.role.toUpperCase()}</option>
+                                  )}
+                                </select>
+                              </div>
                             </div>
                             <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{acc.email}</p>
                           </div>
@@ -808,18 +873,49 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
-                              Account Role &amp; Permissions *
-                            </label>
-                            <select
-                              value={editRole}
-                              onChange={(e) => setEditRole(e.target.value as any)}
-                              className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                            >
-                              <option value="admin">Administrator (Full Rights &amp; Directory Control)</option>
-                              <option value="logistics_coordinator">Logistics Coordinator (Standard Distribution Logging)</option>
-                              <option value="manager">Regional Tourism Manager (Analytics &amp; Circuit Auditing)</option>
-                            </select>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-semibold text-neutral-300">
+                                Account Role &amp; Permissions *
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setIsCustomEditRole(!isCustomEditRole)}
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline"
+                              >
+                                {isCustomEditRole ? 'Select preset role' : 'Write custom role name'}
+                              </button>
+                            </div>
+
+                            {isCustomEditRole ? (
+                              <input
+                                type="text"
+                                required
+                                value={editRole}
+                                onChange={(e) => setEditRole(e.target.value)}
+                                placeholder="e.g. Director of Operations, Regional Auditor, Supervisor"
+                                className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            ) : (
+                              <select
+                                value={['admin', 'logistics_coordinator', 'manager'].includes(editRole) ? editRole : 'custom'}
+                                onChange={(e) => {
+                                  if (e.target.value === 'custom') {
+                                    setIsCustomEditRole(true);
+                                  } else {
+                                    setEditRole(e.target.value);
+                                  }
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                              >
+                                <option value="admin">Administrator (Full Rights &amp; Directory Control)</option>
+                                <option value="logistics_coordinator">Logistics Coordinator (Standard Distribution Logging)</option>
+                                <option value="manager">Regional Tourism Manager (Analytics &amp; Circuit Auditing)</option>
+                                <option value="custom">Custom Role... (Write any custom title)</option>
+                              </select>
+                            )}
+                            <span className="text-[10px] text-neutral-400 mt-1 block">
+                              Account role is fully editable for all users at any time.
+                            </span>
                           </div>
 
                           <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-800">

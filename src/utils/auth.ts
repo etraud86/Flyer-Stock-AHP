@@ -11,7 +11,7 @@ export interface StoredUserAccount {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'logistics_coordinator' | 'manager';
+  role: 'admin' | 'logistics_coordinator' | 'manager' | string;
   passwordHash: string; // Base64 salted hash
   alternatePasswordHash?: string; // Optional legacy alias
   passwordHistory?: string[]; // Array of previous password hashes to prevent repeating passwords
@@ -730,7 +730,7 @@ export function updateAccountPassword(
 export function registerNewUser(
   name: string,
   email: string,
-  role: 'admin' | 'logistics_coordinator' | 'manager',
+  role: 'admin' | 'logistics_coordinator' | 'manager' | string,
   initialPassword: string
 ): { success: boolean; user?: StoredUserAccount; error?: string } {
   const cleanName = name.trim();
@@ -827,7 +827,7 @@ export function updateUserAccount(
   updates: {
     name?: string;
     email?: string;
-    role?: 'admin' | 'logistics_coordinator' | 'manager';
+    role?: 'admin' | 'logistics_coordinator' | 'manager' | string;
   }
 ): { success: boolean; error?: string; user?: StoredUserAccount } {
   const accounts = getStoredAccounts();
@@ -839,7 +839,7 @@ export function updateUserAccount(
   const existing = accounts[index];
   const newName = updates.name !== undefined ? updates.name.trim() : existing.name;
   const newEmail = updates.email !== undefined ? updates.email.trim().toLowerCase() : existing.email;
-  const newRole = updates.role !== undefined ? updates.role : existing.role;
+  const newRole = updates.role !== undefined ? updates.role.trim() : existing.role;
 
   if (!newName) {
     return { success: false, error: 'Full name cannot be empty.' };
@@ -849,6 +849,10 @@ export function updateUserAccount(
     return { success: false, error: 'Valid email address is required.' };
   }
 
+  if (!newRole) {
+    return { success: false, error: 'Account role cannot be empty.' };
+  }
+
   // Check email uniqueness if email changed
   if (newEmail !== existing.email.toLowerCase()) {
     const emailConflict = accounts.some(
@@ -856,18 +860,6 @@ export function updateUserAccount(
     );
     if (emailConflict) {
       return { success: false, error: 'Another account already uses this email address.' };
-    }
-  }
-
-  // Prevent demoting the primary institutional admin or leaving 0 admins
-  if (existing.email.toLowerCase() === 'portal.ahp@gmail.com' && newRole !== 'admin') {
-    return { success: false, error: 'The primary institutional admin account must retain the Admin role.' };
-  }
-
-  if (existing.role === 'admin' && newRole !== 'admin') {
-    const otherAdmins = accounts.filter((u) => u.id !== targetUserId && u.role === 'admin');
-    if (otherAdmins.length === 0) {
-      return { success: false, error: 'At least one active Administrator must remain.' };
     }
   }
 
