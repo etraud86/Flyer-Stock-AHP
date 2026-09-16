@@ -980,6 +980,25 @@ export default function App() {
     showToast('Removed delivery record.');
   };
 
+  const handleAddDeliveryRecord = (delData: Partial<DeliveryRecord>) => {
+    const padNum = (deliveries.length + 1).toString().padStart(3, '0');
+    const date = delData.date || TODAY_STR;
+    const newDelivery: DeliveryRecord = {
+      id: `del-${Date.now()}`,
+      deliveryRef: delData.deliveryRef || `CIRCUIT-2026-${padNum}`,
+      date,
+      officeId: delData.officeId || offices[0]?.id || 'off-1',
+      flyerTypeId: delData.flyerTypeId || flyers[0]?.id || 'flyer-1',
+      quantityDelivered: delData.quantityDelivered || 500,
+      courier: delData.courier || 'Direct Courier / AHP',
+      notes: delData.notes || '',
+      newRequestDate: delData.newRequestDate,
+      depletedDate: delData.depletedDate,
+    };
+    setDeliveries((prev) => [newDelivery, ...prev]);
+    showToast(`Added delivery record for ${newDelivery.quantityDelivered} flyers.`);
+  };
+
   const handleUpdateFair = (fairId: string, patch: Partial<TourismFair>) => {
     setFairs((prev) =>
       prev.map((f) => (f.id === fairId ? { ...f, ...patch } : f))
@@ -1164,6 +1183,9 @@ export default function App() {
             onMarkDepleted={handleOpenDepletionModal}
             onRecordNewRequest={handleRecordNewRequest}
             onOpenEmailModal={handleOpenEmailModal}
+            onUpdateDelivery={handleUpdateDelivery}
+            onDeleteDelivery={handleDeleteDelivery}
+            onAddDelivery={handleAddDeliveryRecord}
           />
         )}
 

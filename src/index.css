@@ -1,9 +1,44 @@
 @import "tailwindcss";
 
-/* Ensure all form controls, selects, options and inputs are razor-sharp black and fully visible */
-input, select, textarea, option {
+/* Ensure all form controls, selects, options and inputs in light views are razor-sharp black and fully visible */
+input:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+select:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+textarea:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+option:not(.text-white):not(.login-input):not([data-theme="dark"]) {
   color: #000000 !important;
   opacity: 1 !important;
+}
+
+/* Ensure dark-themed and login inputs have razor-sharp, visible white text */
+input.text-white,
+input.login-input,
+.login-input,
+[data-theme="dark"] input,
+.dark-theme-input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #0a0a0a !important;
+  opacity: 1 !important;
+}
+
+input.text-white::placeholder,
+input.login-input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Fix browser autofill styling on dark inputs so text stays bright white */
+input.login-input:-webkit-autofill,
+input.login-input:-webkit-autofill:hover, 
+input.login-input:-webkit-autofill:focus,
+input.text-white:-webkit-autofill,
+input.text-white:-webkit-autofill:hover,
+input.text-white:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0px 1000px #0a0a0a inset !important;
+  box-shadow: 0 0 0px 1000px #0a0a0a inset !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 input::placeholder, textarea::placeholder {

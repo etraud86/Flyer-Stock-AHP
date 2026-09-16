@@ -61,7 +61,13 @@ export interface OfficeFlyerMetricOverride {
   avgUsagePeriodDays?: number; // Customized time lapse in days
   avgDailyDistributionRate?: number; // Customized daily distribution velocity
   currentEstimatedStock?: number; // Customized estimated stock remaining
+  projectedRunoutDate?: string; // Customized next replenishment / request date
+  status?: 'depleted' | 'critical' | 'moderate' | 'healthy'; // Customized status
+  recommendedDeliveryQty?: number; // Customized restock recommendation
   notes?: string;
+  customAvgUsagePeriodDays?: number;
+  customBurnRate?: number;
+  customEstimatedStock?: number;
 }
 
 export interface StockInBatch {
@@ -151,12 +157,6 @@ export interface OfficeFlyerMetric {
   hasCustomTimeLapse?: boolean;
   hasCustomBurnRate?: boolean;
   hasCustomStock?: boolean;
-}
-
-export interface OfficeFlyerMetricOverride {
-  customAvgUsagePeriodDays?: number;
-  customBurnRate?: number;
-  customEstimatedStock?: number;
 }
 
 export type ActiveTab =

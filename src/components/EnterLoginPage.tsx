@@ -232,7 +232,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="Enter your email (e.g. portal.ahp@gmail.com)"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                        className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono caret-white shadow-inner"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -266,7 +267,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        className="login-input w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all caret-white shadow-inner"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                       <button
                         type="button"
@@ -363,7 +365,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                         value={resetEmail}
                         onChange={(e) => setResetEmail(e.target.value)}
                         placeholder="portal.ahp@gmail.com"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono"
+                        className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono caret-white"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -396,7 +399,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                               value={newPassword}
                               onChange={(e) => setNewPassword(e.target.value)}
                               placeholder="e.g. AHP@Seguranca2026!"
-                              className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                              className="login-input w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 caret-white"
+                              style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                             />
                             <button
                               type="button"
@@ -422,7 +426,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                               value={confirmPassword}
                               onChange={(e) => setConfirmPassword(e.target.value)}
                               placeholder="Repeat new password"
-                              className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                              className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 caret-white"
+                              style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                             />
                           </div>
                         </div>

@@ -165,7 +165,13 @@ export function computeOfficeFlyerMetrics(
 
       // Determine Status
       let status: 'depleted' | 'critical' | 'moderate' | 'healthy' = 'healthy';
-      if (isDepleted || currentEstimatedStock === 0 || estimatedDaysRemaining <= 0) {
+      if (override?.status) {
+        status = override.status;
+        isCustomized = true;
+        if (status === 'depleted') {
+          isDepleted = true;
+        }
+      } else if (isDepleted || currentEstimatedStock === 0 || estimatedDaysRemaining <= 0) {
         status = 'depleted';
       } else if (estimatedDaysRemaining <= 5) {
         status = 'critical';
@@ -175,9 +181,20 @@ export function computeOfficeFlyerMetrics(
         status = 'healthy';
       }
 
+      if (override?.projectedRunoutDate) {
+        projectedRunoutDate = override.projectedRunoutDate;
+        isCustomized = true;
+      }
+
       // Recommended delivery quantity for target buffer:
-      const rawNeeded = targetBufferDays * avgDailyDistributionRate - currentEstimatedStock;
-      const recommendedDeliveryQty = Math.max(200, Math.ceil(Math.max(0, rawNeeded) / 100) * 100);
+      let recommendedDeliveryQty: number;
+      if (override?.recommendedDeliveryQty !== undefined && override.recommendedDeliveryQty > 0) {
+        recommendedDeliveryQty = override.recommendedDeliveryQty;
+        isCustomized = true;
+      } else {
+        const rawNeeded = targetBufferDays * avgDailyDistributionRate - currentEstimatedStock;
+        recommendedDeliveryQty = Math.max(200, Math.ceil(Math.max(0, rawNeeded) / 100) * 100);
+      }
 
       metrics.push({
         key: metricKey,
