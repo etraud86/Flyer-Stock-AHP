@@ -192,7 +192,11 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || quantity <= 0) return;
+    const sanitizedQuantity = Math.min(
+      100000,
+      Math.max(1, parseInt(String(quantity).replace(/[.,]/g, ''), 10) || 1)
+    );
+    if (!title || sanitizedQuantity <= 0) return;
 
     if (editingRecordId && onUpdateRecord) {
       onUpdateRecord(editingRecordId, {
@@ -201,7 +205,7 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
         category,
         title,
         flyerTypeId,
-        quantity,
+        quantity: sanitizedQuantity,
         deliveredBy,
         recipientOrGroup,
         notes,
@@ -217,7 +221,7 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
         category,
         title,
         flyerTypeId,
-        quantity,
+        quantity: sanitizedQuantity,
         deliveredBy,
         recipientOrGroup,
         notes,
@@ -616,20 +620,30 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                           <input
                             type="number"
                             min={1}
-                            step={10}
+                            max={100000}
+                            step={1}
                             value={rec.quantity}
-                            onChange={(e) =>
+                            onKeyDown={(e) => {
+                              if (e.key === '.' || e.key === ',') {
+                                e.preventDefault();
+                              }
+                            }}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/[.,]/g, '');
+                              const parsed = parseInt(clean, 10);
                               onUpdateRecord(rec.id, {
-                                quantity: Math.max(1, parseInt(e.target.value) || 0),
-                              })
-                            }
+                                quantity: isNaN(parsed)
+                                  ? 1
+                                  : Math.min(100000, Math.max(1, parsed)),
+                              });
+                            }}
                             className="border-2 border-slate-300 rounded px-2 py-1 text-xs text-right font-black text-black w-24 bg-white shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
                             style={{ color: '#000000', backgroundColor: '#ffffff' }}
                           />
                         ) : (
                           <>
                             <span className="text-sm font-black text-teal-800">
-                              {rec.quantity.toLocaleString()}
+                              {rec.quantity}
                             </span>
                             <span className="text-[10px] text-slate-400 block font-medium">units</span>
                           </>
@@ -918,12 +932,39 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     type="number"
                     required
                     min={1}
-                    step={10}
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-black focus:ring-1 focus:ring-teal-500"
+                    max={100000}
+                    step={1}
+                    value={quantity === 0 ? '' : quantity}
+                    onKeyDown={(e) => {
+                      if (e.key === '.' || e.key === ',') {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[.,]/g, '');
+                      if (raw === '') {
+                        setQuantity(0);
+                        return;
+                      }
+                      const num = parseInt(raw, 10);
+                      if (!isNaN(num)) {
+                        setQuantity(Math.min(100000, Math.max(1, num)));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!quantity || quantity < 1) {
+                        setQuantity(1);
+                      } else if (quantity > 100000) {
+                        setQuantity(100000);
+                      }
+                    }}
+                    placeholder="Enter 1 to 100000"
+                    className="w-full border-2 border-slate-300 rounded px-3 py-2 bg-white text-black font-black focus:ring-1 focus:ring-teal-500"
                     style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
+                  <span className="text-[10px] text-slate-500 font-semibold block mt-1">
+                    Allowed: 1 to 100000 (integers only, no period)
+                  </span>
                 </div>
               </div>
 

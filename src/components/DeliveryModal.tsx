@@ -197,13 +197,25 @@ export const DeliveryModal: React.FC<DeliveryModalProps> = ({
                 <input
                   type="number"
                   min={1}
-                  max={Math.max(1, currentAvailableWarehouseStock)}
+                  max={Math.min(100000, Math.max(1, currentAvailableWarehouseStock))}
                   step={1}
-                  value={quantity}
+                  value={quantity === 0 ? '' : quantity}
                   disabled={isStockDepleted}
+                  onKeyDown={(e) => {
+                    if (e.key === '.' || e.key === ',') {
+                      e.preventDefault();
+                    }
+                  }}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    setQuantity(val);
+                    const clean = e.target.value.replace(/[.,]/g, '');
+                    if (clean === '') {
+                      setQuantity(0);
+                      return;
+                    }
+                    const val = parseInt(clean, 10);
+                    if (!isNaN(val)) {
+                      setQuantity(Math.min(100000, Math.max(1, val)));
+                    }
                   }}
                   className={`w-full border rounded-md px-3 py-2 bg-white font-bold text-sm focus:outline-none focus:ring-1 ${
                     isStockInsufficient || isStockDepleted

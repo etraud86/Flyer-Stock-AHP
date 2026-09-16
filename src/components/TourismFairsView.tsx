@@ -513,14 +513,20 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                     <input
                       type="number"
                       min={0}
-                      step={50}
+                      max={100000}
+                      step={1}
                       value={item.spent}
-                      onChange={(e) =>
+                      onKeyDown={(e) => {
+                        if (e.key === '.' || e.key === ',') e.preventDefault();
+                      }}
+                      onChange={(e) => {
+                        const clean = e.target.value.replace(/[.,]/g, '');
+                        const val = parseInt(clean, 10);
                         handleUpdateFlyerDemand(
                           item.id,
-                          Math.max(0, parseInt(e.target.value) || 0)
-                        )
-                      }
+                          isNaN(val) ? 0 : Math.min(100000, Math.max(0, val))
+                        );
+                      }}
                       className="w-full border-2 border-purple-300 rounded px-2 py-1 text-xs text-right font-black text-black bg-white focus:border-purple-600 focus:ring-1 focus:ring-purple-500 shadow-2xs"
                       style={{ color: '#000000', backgroundColor: '#ffffff' }}
                       title="Edit total flyer demand across fairs"
@@ -885,16 +891,22 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                               <input
                                 type="number"
                                 min={0}
-                                step={50}
+                                max={100000}
+                                step={1}
                                 value={item.quantityTaken}
-                                onChange={(e) =>
+                                onKeyDown={(e) => {
+                                  if (e.key === '.' || e.key === ',') e.preventDefault();
+                                }}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[.,]/g, '');
+                                  const val = parseInt(clean, 10);
                                   handleQuickUpdateFairItem(
                                     fair.id,
                                     idx,
                                     'quantityTaken',
-                                    Math.max(0, parseInt(e.target.value) || 0)
-                                  )
-                                }
+                                    isNaN(val) ? 0 : Math.min(100000, Math.max(0, val))
+                                  );
+                                }}
                                 className="border-2 border-slate-300 rounded px-2 py-1 text-xs text-right font-black text-black bg-white w-28 focus:border-purple-600 focus:ring-1 focus:ring-purple-500 shadow-2xs"
                                 style={{ color: '#000000', backgroundColor: '#ffffff' }}
                                 title="Flyers taken to fair"
@@ -912,16 +924,22 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                               <input
                                 type="number"
                                 min={0}
-                                step={10}
+                                max={100000}
+                                step={1}
                                 value={item.quantityReturned}
-                                onChange={(e) =>
+                                onKeyDown={(e) => {
+                                  if (e.key === '.' || e.key === ',') e.preventDefault();
+                                }}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[.,]/g, '');
+                                  const val = parseInt(clean, 10);
                                   handleQuickUpdateFairItem(
                                     fair.id,
                                     idx,
                                     'quantityReturned',
-                                    Math.max(0, parseInt(e.target.value) || 0)
-                                  )
-                                }
+                                    isNaN(val) ? 0 : Math.min(100000, Math.max(0, val))
+                                  );
+                                }}
                                 className="border-2 border-slate-300 rounded px-2 py-1 text-xs text-right font-black text-black bg-white w-28 focus:border-purple-600 focus:ring-1 focus:ring-purple-500 shadow-2xs"
                                 style={{ color: '#000000', backgroundColor: '#ffffff' }}
                                 title="Flyers brought back unused"
@@ -1174,15 +1192,23 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                           <span className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">Taken</span>
                           <input
                             type="number"
+                            min={0}
+                            max={100000}
+                            step={1}
                             placeholder="Taken"
                             value={fi.quantityTaken}
-                            onChange={(e) =>
+                            onKeyDown={(e) => {
+                              if (e.key === '.' || e.key === ',') e.preventDefault();
+                            }}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/[.,]/g, '');
+                              const val = parseInt(clean, 10);
                               handleItemChange(
                                 idx,
                                 'quantityTaken',
-                                Math.max(0, parseInt(e.target.value) || 0)
-                              )
-                            }
+                                isNaN(val) ? 0 : Math.min(100000, Math.max(0, val))
+                              );
+                            }}
                             className="w-full border-2 border-slate-300 rounded px-2 py-1 bg-white text-black text-xs text-right font-black focus:ring-1 focus:ring-purple-500"
                             style={{ color: '#000000', backgroundColor: '#ffffff' }}
                             title="Flyers taken to fair"
@@ -1193,15 +1219,23 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                           <span className="text-[9px] font-bold text-slate-600 uppercase block mb-0.5">Returned</span>
                           <input
                             type="number"
+                            min={0}
+                            max={100000}
+                            step={1}
                             placeholder="Returned"
                             value={fi.quantityReturned}
-                            onChange={(e) =>
+                            onKeyDown={(e) => {
+                              if (e.key === '.' || e.key === ',') e.preventDefault();
+                            }}
+                            onChange={(e) => {
+                              const clean = e.target.value.replace(/[.,]/g, '');
+                              const val = parseInt(clean, 10);
                               handleItemChange(
                                 idx,
                                 'quantityReturned',
-                                Math.max(0, parseInt(e.target.value) || 0)
-                              )
-                            }
+                                isNaN(val) ? 0 : Math.min(100000, Math.max(0, val))
+                              );
+                            }}
                             className="w-full border-2 border-slate-300 rounded px-2 py-1 bg-white text-black text-xs text-right font-black focus:ring-1 focus:ring-purple-500"
                             style={{ color: '#000000', backgroundColor: '#ffffff' }}
                             title="Flyers brought back unused"
