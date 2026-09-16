@@ -19,6 +19,7 @@ import {
   Check,
   Building2,
   ShieldAlert,
+  Pencil,
 } from 'lucide-react';
 import {
   updateAccountPassword,
@@ -26,6 +27,7 @@ import {
   getStoredAccounts,
   adminResetUserPassword,
   deleteUserAccount,
+  updateUserAccount,
   validatePasswordPolicy,
   generateCompliantPassword,
   StoredUserAccount,
@@ -38,6 +40,7 @@ interface UserManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccessToast: (msg: string) => void;
+  onUserUpdated?: (user: AuthUser) => void;
   initialTab?: 'change_password' | 'register_user' | 'users_list';
 }
 
@@ -46,6 +49,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   isOpen,
   onClose,
   onSuccessToast,
+  onUserUpdated,
   initialTab = 'change_password',
 }) => {
   const [activeTab, setActiveTab] = useState<'change_password' | 'register_user' | 'users_list'>(
@@ -79,6 +83,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [resetNewPass, setResetNewPass] = useState('');
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+
+  // Edit User Directory State
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'logistics_coordinator' | 'manager'>('logistics_coordinator');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -173,6 +185,53 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       onSuccessToast('User account removed.');
     } else {
       alert(res.error || 'Cannot delete user.');
+    }
+  };
+
+  const startEditingUser = (user: StoredUserAccount) => {
+    setResetTargetUserId(null); // Close password reset if open
+    setEditingUserId(user.id);
+    setEditName(user.name);
+    setEditEmail(user.email);
+    setEditRole(user.role);
+    setEditError(null);
+    setEditSuccess(null);
+  };
+
+  const cancelEditingUser = () => {
+    setEditingUserId(null);
+    setEditError(null);
+    setEditSuccess(null);
+  };
+
+  const handleSaveUserEdit = (userId: string) => {
+    setEditError(null);
+    setEditSuccess(null);
+
+    const result = updateUserAccount(userId, {
+      name: editName,
+      email: editEmail,
+      role: editRole,
+    });
+
+    if (result.success && result.user) {
+      setEditSuccess('User account updated successfully!');
+      refreshAccounts();
+      onSuccessToast(`User "${result.user.name}" updated successfully!`);
+      if (currentUser.id === userId && onUserUpdated) {
+        onUserUpdated({
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name,
+          role: result.user.role,
+        });
+      }
+      setTimeout(() => {
+        setEditingUserId(null);
+        setEditSuccess(null);
+      }, 1000);
+    } else {
+      setEditError(result.error || 'Failed to update user profile.');
     }
   };
 
@@ -589,6 +648,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 {accounts.map((acc) => {
                   const isCurrent = acc.id === currentUser.id;
                   const isResettingThis = resetTargetUserId === acc.id;
+                  const isEditingThis = editingUserId === acc.id;
 
                   return (
                     <div
@@ -622,13 +682,34 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isEditingThis) {
+                                cancelEditingUser();
+                              } else {
+                                startEditingUser(acc);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer border ${
+                              isEditingThis
+                                ? 'bg-emerald-600 text-white border-emerald-500'
+                                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700 hover:text-white'
+                            }`}
+                            title="Edit user details in directory"
+                          >
+                            <Pencil className="w-3 h-3 text-emerald-400" />
+                            <span>{isEditingThis ? 'Close Edit' : 'Edit'}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
                               if (isResettingThis) {
                                 setResetTargetUserId(null);
                               } else {
+                                cancelEditingUser();
                                 setResetTargetUserId(acc.id);
                                 setResetNewPass('');
                               }
@@ -652,6 +733,115 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {/* Edit User Form Inline */}
+                      {isEditingThis && (
+                        <div className="mt-2.5 pt-3 border-t border-neutral-800 space-y-3 bg-neutral-900/80 p-3.5 rounded-xl border border-neutral-700/60 animate-in fade-in">
+                          <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 bg-emerald-950 border border-emerald-800 text-emerald-400 rounded-md">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-white block leading-tight">Edit Directory User</span>
+                                <span className="text-[10px] text-neutral-400">Update operator name, email address, or administrative privileges</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={cancelEditingUser}
+                              className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 cursor-pointer"
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {editError && (
+                            <div className="p-2.5 bg-red-950/80 border border-red-500/50 rounded-lg text-red-200 text-xs flex items-center gap-2">
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                              <span>{editError}</span>
+                            </div>
+                          )}
+
+                          {editSuccess && (
+                            <div className="p-2.5 bg-emerald-950/80 border border-emerald-500/50 rounded-lg text-emerald-200 text-xs flex items-center gap-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>{editSuccess}</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                                Full Name / Operator *
+                              </label>
+                              <div className="relative">
+                                <User className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="text"
+                                  required
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  placeholder="e.g. Aldeias Históricas de Portugal"
+                                  className="w-full pl-8 pr-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                                Email Address *
+                              </label>
+                              <div className="relative">
+                                <Mail className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="email"
+                                  required
+                                  value={editEmail}
+                                  onChange={(e) => setEditEmail(e.target.value)}
+                                  placeholder="e.g. portal.ahp@gmail.com"
+                                  className="w-full pl-8 pr-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                              Account Role &amp; Permissions *
+                            </label>
+                            <select
+                              value={editRole}
+                              onChange={(e) => setEditRole(e.target.value as any)}
+                              className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                            >
+                              <option value="admin">Administrator (Full Rights &amp; Directory Control)</option>
+                              <option value="logistics_coordinator">Logistics Coordinator (Standard Distribution Logging)</option>
+                              <option value="manager">Regional Tourism Manager (Analytics &amp; Circuit Auditing)</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-800">
+                            <button
+                              type="button"
+                              onClick={cancelEditingUser}
+                              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveUserEdit(acc.id)}
+                              disabled={!editName.trim() || !editEmail.trim()}
+                              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Save Changes</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Reset Password Form Inline */}
                       {isResettingThis && (

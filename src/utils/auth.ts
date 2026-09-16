@@ -822,6 +822,95 @@ export function deleteUserAccount(
   return { success: true };
 }
 
+export function updateUserAccount(
+  targetUserId: string,
+  updates: {
+    name?: string;
+    email?: string;
+    role?: 'admin' | 'logistics_coordinator' | 'manager';
+  }
+): { success: boolean; error?: string; user?: StoredUserAccount } {
+  const accounts = getStoredAccounts();
+  const index = accounts.findIndex((u) => u.id === targetUserId);
+  if (index === -1) {
+    return { success: false, error: 'User account not found.' };
+  }
+
+  const existing = accounts[index];
+  const newName = updates.name !== undefined ? updates.name.trim() : existing.name;
+  const newEmail = updates.email !== undefined ? updates.email.trim().toLowerCase() : existing.email;
+  const newRole = updates.role !== undefined ? updates.role : existing.role;
+
+  if (!newName) {
+    return { success: false, error: 'Full name cannot be empty.' };
+  }
+
+  if (!newEmail || !newEmail.includes('@') || !newEmail.includes('.')) {
+    return { success: false, error: 'Valid email address is required.' };
+  }
+
+  // Check email uniqueness if email changed
+  if (newEmail !== existing.email.toLowerCase()) {
+    const emailConflict = accounts.some(
+      (u) => u.id !== targetUserId && u.email.toLowerCase() === newEmail
+    );
+    if (emailConflict) {
+      return { success: false, error: 'Another account already uses this email address.' };
+    }
+  }
+
+  // Prevent demoting the primary institutional admin or leaving 0 admins
+  if (existing.email.toLowerCase() === 'portal.ahp@gmail.com' && newRole !== 'admin') {
+    return { success: false, error: 'The primary institutional admin account must retain the Admin role.' };
+  }
+
+  if (existing.role === 'admin' && newRole !== 'admin') {
+    const otherAdmins = accounts.filter((u) => u.id !== targetUserId && u.role === 'admin');
+    if (otherAdmins.length === 0) {
+      return { success: false, error: 'At least one active Administrator must remain.' };
+    }
+  }
+
+  const updatedUser: StoredUserAccount = {
+    ...existing,
+    name: newName,
+    email: newEmail,
+    role: newRole,
+  };
+
+  accounts[index] = updatedUser;
+  saveStoredAccounts(accounts);
+
+  // If the edited user is the current session user, update session as well
+  try {
+    const session = getCurrentSession();
+    if (session && session.user.id === targetUserId) {
+      const updatedAuthUser: AuthUser = {
+        ...session.user,
+        name: newName,
+        email: newEmail,
+        role: newRole,
+      };
+      if (localStorage.getItem(STORAGE_KEYS.SESSION_LOCAL)) {
+        localStorage.setItem(
+          STORAGE_KEYS.SESSION_LOCAL,
+          JSON.stringify({ ...session, user: updatedAuthUser })
+        );
+      }
+      if (sessionStorage.getItem(STORAGE_KEYS.SESSION_TEMPORARY)) {
+        sessionStorage.setItem(
+          STORAGE_KEYS.SESSION_TEMPORARY,
+          JSON.stringify({ ...session, user: updatedAuthUser })
+        );
+      }
+    }
+  } catch (e) {
+    console.error('Failed to update active session cache', e);
+  }
+
+  return { success: true, user: updatedUser };
+}
+
 // -------------------------------------------------------------
 // SELF-SERVICE PASSWORD RESET WITH 2FA VERIFICATION CODE
 // -------------------------------------------------------------

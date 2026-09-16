@@ -1394,6 +1394,9 @@ export default function App() {
           onSuccessToast={(msg) => {
             showToast(msg);
           }}
+          onUserUpdated={(updatedUser) => {
+            setSession((prev) => (prev ? { ...prev, user: updatedUser } : null));
+          }}
           initialTab={userModalTab}
         />
       )}

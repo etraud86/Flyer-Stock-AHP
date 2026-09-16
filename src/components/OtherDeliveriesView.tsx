@@ -245,12 +245,6 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
     )
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const knownStaffMembers = useMemo(() => {
-    const defaults = ['Miguel Silva', 'Inês Valente', 'Sofia Costa', 'Carlos Pereira', 'Ana Ramos', 'Tiago Mendes'];
-    const fromRecords = records.map((r) => r.deliveredBy).filter(Boolean);
-    return Array.from(new Set([...defaults, ...fromRecords]));
-  }, [records]);
-
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
@@ -653,30 +647,15 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       {/* Delivered By */}
                       <td className="py-3 px-4 min-w-[170px]">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <div className="space-y-1">
-                            <input
-                              type="text"
-                              list="staff-options-datalist"
-                              value={rec.deliveredBy}
-                              onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
-                              placeholder="Select or type staff..."
-                              className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
-                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
-                            />
-                            <select
-                              value={rec.deliveredBy}
-                              onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
-                              className="w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50 text-black font-semibold"
-                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
-                            >
-                              <option value="" disabled>Staff Options</option>
-                              {knownStaffMembers.map((sm) => (
-                                <option key={sm} value={sm} className="text-black bg-white font-bold" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
-                                  {sm}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          <input
+                            type="text"
+                            value={rec.deliveredBy}
+                            onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
+                            placeholder="Write staff name..."
+                            className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                            style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                            title="Write staff name who delivered"
+                          />
                         ) : (
                           <span className="font-bold text-slate-900 flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5 text-teal-600 shrink-0" />
@@ -971,35 +950,20 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-800 mb-1">
-                    Delivered By *
+                    Delivered By (Staff) *
                   </label>
                   <input
                     type="text"
                     required
-                    list="staff-options-datalist"
                     value={deliveredBy}
                     onChange={(e) => setDeliveredBy(e.target.value)}
-                    placeholder="e.g. Miguel Silva, Inês Valente"
+                    placeholder="Write staff name (e.g. Miguel Silva)"
                     className="w-full border-2 border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
                     style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <span className="text-[10px] text-slate-500 font-bold self-center">Options:</span>
-                    {knownStaffMembers.map((sm) => (
-                      <button
-                        key={sm}
-                        type="button"
-                        onClick={() => setDeliveredBy(sm)}
-                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                          deliveredBy === sm
-                            ? 'bg-teal-600 text-white border-teal-600 font-bold'
-                            : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 font-medium'
-                        }`}
-                      >
-                        {sm}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                    Write the staff member responsible for this delivery.
+                  </span>
                 </div>
 
                 <div>
@@ -1105,13 +1069,6 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
           .map((customCat) => (
             <option key={customCat} value={customCat} />
           ))}
-      </datalist>
-
-      {/* Global Staff options datalist */}
-      <datalist id="staff-options-datalist">
-        {knownStaffMembers.map((sm, i) => (
-          <option key={i} value={sm} />
-        ))}
       </datalist>
     </div>
   );

@@ -765,14 +765,27 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-slate-500 mt-1">
+                  <div className="flex items-center gap-4 text-xs text-slate-500 mt-1 flex-wrap">
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
                       {fair.startDate} to {fair.endDate}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-slate-400" />
-                      Staff: <strong>{fair.attendingStaff}</strong>
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>Staff:</span>
+                      {isFairsTableInlineEdit && onUpdateFair ? (
+                        <input
+                          type="text"
+                          value={fair.attendingStaff || ''}
+                          onChange={(e) => onUpdateFair(fair.id, { attendingStaff: e.target.value })}
+                          placeholder="Write attending staff..."
+                          className="px-2 py-0.5 text-xs bg-white text-black font-bold border-2 border-slate-300 rounded focus:border-purple-600 focus:outline-none"
+                          style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                          title="Write attending staff"
+                        />
+                      ) : (
+                        <strong className="text-slate-800">{fair.attendingStaff || 'None recorded'}</strong>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -1129,10 +1142,13 @@ export const TourismFairsView: React.FC<TourismFairsViewProps> = ({
                     type="text"
                     value={attendingStaff}
                     onChange={(e) => setAttendingStaff(e.target.value)}
-                    placeholder="e.g. Ana Ramos, Tiago Mendes"
+                    placeholder="Write attending staff (e.g. Ana Ramos, Tiago Mendes)"
                     className="w-full border-2 border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-purple-500 focus:outline-none"
                     style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
+                  <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                    Write staff member names attending the fair.
+                  </span>
                 </div>
               </div>
 
