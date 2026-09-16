@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Share2,
   Calendar,
@@ -241,6 +241,12 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
     )
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  const knownStaffMembers = useMemo(() => {
+    const defaults = ['Miguel Silva', 'Inês Valente', 'Sofia Costa', 'Carlos Pereira', 'Ana Ramos', 'Tiago Mendes'];
+    const fromRecords = records.map((r) => r.deliveredBy).filter(Boolean);
+    return Array.from(new Set([...defaults, ...fromRecords]));
+  }, [records]);
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
@@ -417,7 +423,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                 placeholder="Search event, guide, recipient..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 border border-slate-300 rounded-md text-xs bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 w-56 sm:w-64"
+                className="pl-8 pr-3 py-1.5 border border-slate-300 rounded-md text-xs bg-white text-black font-semibold placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500 w-56 sm:w-64"
+                style={{ color: '#000000', backgroundColor: '#ffffff' }}
               />
             </div>
           </div>
@@ -460,18 +467,20 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       {/* Date & Ref */}
                       <td className="py-3 px-4">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <input
                               type="date"
                               value={rec.date}
                               onChange={(e) => onUpdateRecord(rec.id, { date: e.target.value })}
-                              className="border border-slate-300 rounded px-1.5 py-0.5 text-xs bg-white focus:ring-1 focus:ring-teal-500"
+                              className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold focus:border-teal-600 focus:ring-1 focus:ring-teal-500 block shadow-2xs"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
                             />
                             <input
                               type="text"
                               value={rec.ref}
                               onChange={(e) => onUpdateRecord(rec.id, { ref: e.target.value })}
-                              className="border border-slate-300 rounded px-1.5 py-0.5 text-[10px] font-mono bg-white w-24 block"
+                              className="border-2 border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold bg-white text-black w-28 block shadow-2xs"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
                             />
                           </div>
                         ) : (
@@ -497,7 +506,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                               }
                               list="category-suggestions-list"
                               placeholder="Category..."
-                              className="border border-teal-300 rounded px-2 py-1 text-xs bg-white text-slate-800 font-medium focus:ring-1 focus:ring-teal-500 w-36"
+                              className="border-2 border-teal-400 rounded px-2 py-1 text-xs bg-white text-black font-bold focus:ring-1 focus:ring-teal-500 w-40 shadow-2xs"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
                               title="Editable delivery category. Type custom category or pick from suggestions."
                             />
                           </div>
@@ -512,59 +522,87 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       </td>
 
                       {/* Activity / Recipient */}
-                      <td className="py-3 px-4 max-w-xs">
+                      <td className="py-3 px-4 min-w-[200px]">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <div className="space-y-1">
-                            <input
-                              type="text"
-                              value={rec.title}
-                              onChange={(e) => onUpdateRecord(rec.id, { title: e.target.value })}
-                              className="border border-slate-300 rounded px-1.5 py-0.5 text-xs bg-white font-semibold w-full"
-                            />
-                            <input
-                              type="text"
-                              value={rec.recipientOrGroup}
-                              onChange={(e) =>
-                                onUpdateRecord(rec.id, { recipientOrGroup: e.target.value })
-                              }
-                              placeholder="Recipient group..."
-                              className="border border-slate-300 rounded px-1.5 py-0.5 text-[11px] bg-white text-slate-600 w-full"
-                            />
+                          <div className="space-y-1.5">
+                            <div>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">
+                                Activity / Description
+                              </span>
+                              <input
+                                type="text"
+                                value={rec.title}
+                                onChange={(e) => onUpdateRecord(rec.id, { title: e.target.value })}
+                                placeholder="Activity title..."
+                                className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                                style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">
+                                Target Recipient / Group
+                              </span>
+                              <input
+                                type="text"
+                                value={rec.recipientOrGroup}
+                                onChange={(e) =>
+                                  onUpdateRecord(rec.id, { recipientOrGroup: e.target.value })
+                                }
+                                placeholder="Target recipient or group..."
+                                className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                                style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                              />
+                            </div>
                           </div>
                         ) : (
-                          <>
-                            <span className="font-semibold text-slate-900 block">{rec.title}</span>
-                            <span className="text-slate-500 text-[11px] block truncate">
-                              Target: <strong>{rec.recipientOrGroup}</strong>
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-slate-900 block leading-tight">
+                              {rec.title}
                             </span>
-                          </>
+                            <span className="text-slate-600 text-xs block font-medium">
+                              Recipient: <strong className="text-black">{rec.recipientOrGroup}</strong>
+                            </span>
+                          </div>
                         )}
                       </td>
 
                       {/* Flyer Material */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 min-w-[220px]">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <select
-                            value={rec.flyerTypeId}
-                            onChange={(e) => onUpdateRecord(rec.id, { flyerTypeId: e.target.value })}
-                            className="border border-slate-300 rounded px-1.5 py-1 text-xs bg-white max-w-[180px]"
-                          >
-                            {flyers.map((flItem) => (
-                              <option key={flItem.id} value={flItem.id}>
-                                {flItem.sku} — {flItem.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-4 h-4 rounded-full shrink-0 border border-slate-300 shadow-2xs"
+                              style={{ backgroundColor: fl?.color || '#059669' }}
+                              title={`Color: ${fl?.color}`}
+                            />
+                            <select
+                              value={rec.flyerTypeId}
+                              onChange={(e) => onUpdateRecord(rec.id, { flyerTypeId: e.target.value })}
+                              className="w-full border-2 border-slate-300 rounded px-2.5 py-1 text-xs bg-white text-black font-bold shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                            >
+                              {flyers.map((flItem) => (
+                                <option
+                                  key={flItem.id}
+                                  value={flItem.id}
+                                  className="text-black font-bold bg-white py-1"
+                                  style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                                >
+                                  {flItem.sku} — {flItem.name} ({flItem.language})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <span
-                              className="w-3.5 h-3.5 rounded-full shrink-0 border border-slate-300 shadow-2xs"
+                              className="w-4 h-4 rounded-full shrink-0 border border-slate-300 shadow-2xs"
                               style={{ backgroundColor: fl?.color || '#059669' }}
                               title={`Flyer brand color: ${fl?.color}`}
                             />
                             <div>
-                              <span className="font-medium text-slate-800">{fl?.name}</span>
-                              <span className="text-slate-400 text-[10px] block font-mono">
+                              <span className="font-bold text-slate-900 block">{fl?.name}</span>
+                              <span className="text-slate-500 text-[11px] block font-mono font-medium">
                                 {fl?.sku} &bull; {fl?.language}
                               </span>
                             </div>
@@ -585,31 +623,50 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                                 quantity: Math.max(1, parseInt(e.target.value) || 0),
                               })
                             }
-                            className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-right font-black text-teal-800 w-20 bg-white"
+                            className="border-2 border-slate-300 rounded px-2 py-1 text-xs text-right font-black text-black w-24 bg-white shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                            style={{ color: '#000000', backgroundColor: '#ffffff' }}
                           />
                         ) : (
                           <>
                             <span className="text-sm font-black text-teal-800">
                               {rec.quantity.toLocaleString()}
                             </span>
-                            <span className="text-[10px] text-slate-400 block">units</span>
+                            <span className="text-[10px] text-slate-400 block font-medium">units</span>
                           </>
                         )}
                       </td>
 
                       {/* Delivered By */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 min-w-[170px]">
                         {isInlineEditMode && onUpdateRecord ? (
-                          <input
-                            type="text"
-                            value={rec.deliveredBy}
-                            onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
-                            className="border border-slate-300 rounded px-1.5 py-0.5 text-xs bg-white w-32"
-                          />
+                          <div className="space-y-1">
+                            <input
+                              type="text"
+                              list="staff-options-datalist"
+                              value={rec.deliveredBy}
+                              onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
+                              placeholder="Select or type staff..."
+                              className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-bold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                            />
+                            <select
+                              value={rec.deliveredBy}
+                              onChange={(e) => onUpdateRecord(rec.id, { deliveredBy: e.target.value })}
+                              className="w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-slate-50 text-black font-semibold"
+                              style={{ color: '#000000', backgroundColor: '#ffffff' }}
+                            >
+                              <option value="" disabled>Staff Options</option>
+                              {knownStaffMembers.map((sm) => (
+                                <option key={sm} value={sm} className="text-black bg-white font-bold" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
+                                  {sm}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         ) : (
-                          <span className="font-medium text-slate-700 flex items-center gap-1">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            {rec.deliveredBy}
+                          <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                            <span>{rec.deliveredBy}</span>
                           </span>
                         )}
                       </td>
@@ -622,7 +679,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                             value={rec.notes || ''}
                             onChange={(e) => onUpdateRecord(rec.id, { notes: e.target.value })}
                             placeholder="Add notes..."
-                            className="border border-slate-300 rounded px-1.5 py-0.5 text-xs bg-white w-full"
+                            className="border-2 border-slate-300 rounded px-2 py-1 text-xs bg-white text-black font-semibold w-full shadow-2xs focus:border-teal-600 focus:ring-1 focus:ring-teal-500"
+                            style={{ color: '#000000', backgroundColor: '#ffffff' }}
                           />
                         ) : (
                           rec.notes || '—'
@@ -718,7 +776,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     value={ref}
                     onChange={(e) => setRef(e.target.value)}
                     placeholder="e.g. OD-2026-001"
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 font-mono focus:ring-1 focus:ring-teal-500"
+                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-bold font-mono focus:ring-1 focus:ring-teal-500"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
                 </div>
 
@@ -731,7 +790,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
                 </div>
               </div>
@@ -757,7 +817,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="Type custom category name (e.g. Tourism Fair, Festival, Guided Excursion)..."
-                      className="w-full border-2 border-teal-600 rounded px-3 py-2 bg-white text-slate-900 font-medium focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      className="w-full border-2 border-teal-600 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      style={{ color: '#000000', backgroundColor: '#ffffff' }}
                     />
                     <div className="flex flex-wrap items-center gap-1">
                       <span className="text-[10px] text-slate-400 font-medium">Quick presets:</span>
@@ -784,10 +845,11 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                         setCategory(e.target.value);
                       }
                     }}
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 font-medium focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   >
                     {Object.keys(CATEGORY_CONFIG).map((cat) => (
-                      <option key={cat} value={cat}>
+                      <option key={cat} value={cat} className="text-black bg-white font-bold" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
                         {CATEGORY_CONFIG[cat].label}
                       </option>
                     ))}
@@ -795,11 +857,11 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                       .map((r) => r.category)
                       .filter((c, i, a) => c && !CATEGORY_CONFIG[c] && a.indexOf(c) === i)
                       .map((customCat) => (
-                        <option key={customCat} value={customCat}>
+                        <option key={customCat} value={customCat} className="text-black bg-white font-bold" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
                           Custom: {customCat}
                         </option>
                       ))}
-                    <option value="__custom__">✨ + Enter Custom Category...</option>
+                    <option value="__custom__" className="text-purple-700 bg-white font-bold" style={{ color: '#6b21a8', backgroundColor: '#ffffff' }}>✨ + Enter Custom Category...</option>
                   </select>
                 )}
               </div>
@@ -814,7 +876,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Historical Village Central Reception (Walk-ins), Guided Tour #4"
-                  className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
+                  style={{ color: '#000000', backgroundColor: '#ffffff' }}
                 />
               </div>
 
@@ -835,10 +898,11 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     <select
                       value={flyerTypeId}
                       onChange={(e) => setFlyerTypeId(e.target.value)}
-                      className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                      className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
+                      style={{ color: '#000000', backgroundColor: '#ffffff' }}
                     >
                       {flyers.map((fl) => (
-                        <option key={fl.id} value={fl.id}>
+                        <option key={fl.id} value={fl.id} className="text-black font-bold bg-white" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
                           {fl.sku} — {fl.name}
                         </option>
                       ))}
@@ -857,28 +921,48 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     step={10}
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 font-bold focus:ring-1 focus:ring-teal-500"
+                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-black font-black focus:ring-1 focus:ring-teal-500"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-800 mb-1">
                     Delivered By *
                   </label>
                   <input
                     type="text"
                     required
+                    list="staff-options-datalist"
                     value={deliveredBy}
                     onChange={(e) => setDeliveredBy(e.target.value)}
                     placeholder="e.g. Miguel Silva, Inês Valente"
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                    className="w-full border-2 border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    <span className="text-[10px] text-slate-500 font-bold self-center">Options:</span>
+                    {knownStaffMembers.map((sm) => (
+                      <button
+                        key={sm}
+                        type="button"
+                        onClick={() => setDeliveredBy(sm)}
+                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                          deliveredBy === sm
+                            ? 'bg-teal-600 text-white border-teal-600 font-bold'
+                            : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 font-medium'
+                        }`}
+                      >
+                        {sm}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-bold text-slate-800 mb-1">
                     Recipient Group / Contact
                   </label>
                   <input
@@ -886,7 +970,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                     value={recipientOrGroup}
                     onChange={(e) => setRecipientOrGroup(e.target.value)}
                     placeholder="e.g. Village Front Desk, Senior Tour Group"
-                    className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                    className="w-full border-2 border-slate-300 rounded px-3 py-2 bg-white text-black font-bold focus:ring-1 focus:ring-teal-500"
+                    style={{ color: '#000000', backgroundColor: '#ffffff' }}
                   />
                 </div>
               </div>
@@ -900,7 +985,8 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Itinerary, language requirement, event schedule..."
-                  className="w-full border border-slate-300 rounded px-3 py-1.5 bg-white text-slate-800 focus:ring-1 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded px-3 py-1.5 bg-white text-black font-medium focus:ring-1 focus:ring-teal-500"
+                  style={{ color: '#000000', backgroundColor: '#ffffff' }}
                 />
               </div>
 
@@ -978,6 +1064,13 @@ export const OtherDeliveriesView: React.FC<OtherDeliveriesViewProps> = ({
           .map((customCat) => (
             <option key={customCat} value={customCat} />
           ))}
+      </datalist>
+
+      {/* Global Staff options datalist */}
+      <datalist id="staff-options-datalist">
+        {knownStaffMembers.map((sm, i) => (
+          <option key={i} value={sm} />
+        ))}
       </datalist>
     </div>
   );
