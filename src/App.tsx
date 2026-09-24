@@ -107,6 +107,72 @@ export default function App() {
     return saved ? JSON.parse(saved) : {};
   });
 
+  const [isDatabaseReady, setIsDatabaseReady] = useState(false);
+
+  // Hydrate the browser from Netlify Database. On a fresh deployment, seed the
+  // database with the existing starter inventory so the site remains useful.
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateInventory = async () => {
+      try {
+        const response = await fetch('/api/inventory');
+        if (!response.ok) throw new Error('Unable to load inventory database');
+        const result = await response.json();
+        if (cancelled) return;
+
+        if (result.initialized) {
+          const state = result.state;
+          setFlyers(state.flyers || []);
+          setOffices(state.offices || []);
+          setDeliveries(state.deliveries || []);
+          setBatches(state.batches || []);
+          setFairs(state.fairs || []);
+          setOtherDeliveries(state.otherDeliveries || []);
+          setMetricOverrides(state.metricOverrides || {});
+        }
+      } catch (error) {
+        console.warn('Inventory database is unavailable; using the local offline copy.', error);
+      } finally {
+        if (!cancelled) setIsDatabaseReady(true);
+      }
+    };
+
+    hydrateInventory();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist edits after a short debounce. Local storage remains an offline
+  // fallback, while the database is the shared source for every device.
+  useEffect(() => {
+    if (!isDatabaseReady) return;
+
+    const timeout = window.setTimeout(() => {
+      fetch('/api/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: { flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides },
+        }),
+      }).catch((error) => {
+        console.warn('Inventory changes remain saved locally until database sync recovers.', error);
+      });
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    isDatabaseReady,
+    flyers,
+    offices,
+    deliveries,
+    batches,
+    fairs,
+    otherDeliveries,
+    metricOverrides,
+  ]);
+
   useEffect(() => {
     localStorage.setItem('flyerstock_metric_overrides_v1', JSON.stringify(metricOverrides));
   }, [metricOverrides]);
@@ -1069,4 +1135,3 @@ export default function App() {
     </div>
   );
 }
-
