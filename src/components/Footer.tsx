@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
+import { APP_VERSION_LABEL } from '../version';
 import { AuthUser, FlyerType, TourismOffice, DeliveryRecord } from '../types';
 
 interface FooterProps {
@@ -101,7 +102,7 @@ export const Footer: React.FC<FooterProps> = ({
             <span>&copy; {new Date().getFullYear()} Aldeias Históricas de Portugal. All rights reserved.</span>
           </div>
           <span className="text-neutral-400 font-mono text-[10px]">
-            Secure Version v2.6.4 &bull; Cloud Enterprise Infrastructure
+            {APP_VERSION_LABEL}
           </span>
         </div>
       </div>

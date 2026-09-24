@@ -126,7 +126,36 @@ function loadServerStock(): any | null {
 
 function saveServerStock(stockData: any) {
   try {
-    fs.writeFileSync(STOCK_FILE, JSON.stringify(stockData, null, 2), 'utf-8');
+    const existing = loadServerStock() || {};
+    const merged = {
+      ...existing,
+      ...stockData,
+      flyers:
+        Array.isArray(stockData.flyers) && stockData.flyers.length > 0
+          ? stockData.flyers
+          : existing.flyers || [],
+      offices:
+        Array.isArray(stockData.offices) && stockData.offices.length > 0
+          ? stockData.offices
+          : existing.offices || [],
+      deliveries:
+        Array.isArray(stockData.deliveries) && stockData.deliveries.length > 0
+          ? stockData.deliveries
+          : existing.deliveries || [],
+      batches:
+        Array.isArray(stockData.batches) && stockData.batches.length > 0
+          ? stockData.batches
+          : existing.batches || [],
+      fairs:
+        Array.isArray(stockData.fairs) && stockData.fairs.length > 0
+          ? stockData.fairs
+          : existing.fairs || [],
+      otherDeliveries:
+        Array.isArray(stockData.otherDeliveries) && stockData.otherDeliveries.length > 0
+          ? stockData.otherDeliveries
+          : existing.otherDeliveries || [],
+    };
+    fs.writeFileSync(STOCK_FILE, JSON.stringify(merged, null, 2), 'utf-8');
   } catch (err) {
     console.error('[Server] Failed to write stock file:', err);
   }

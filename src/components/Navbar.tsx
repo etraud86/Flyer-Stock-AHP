@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileSpreadsheet,
   LayoutDashboard,
@@ -25,6 +25,8 @@ import {
   Layers,
   Sparkles,
   PenTool,
+  Database,
+  Save,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -64,6 +66,8 @@ interface NavbarProps {
   depletedCount: number;
   criticalCount: number;
   metricOverrides?: Record<string, OfficeFlyerMetricOverride>;
+  onExportDatabaseBackup?: () => void;
+  onImportDatabaseBackup?: (file: File) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -81,6 +85,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenChangePassword,
   onOpenUserManagement,
+  onExportDatabaseBackup,
+  onImportDatabaseBackup,
   flyers,
   offices,
   deliveries,
@@ -94,6 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [isExcelMenuOpen, setIsExcelMenuOpen] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
     exportToExcelWorkbook(
@@ -373,6 +380,40 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     </button>
 
+                    {onExportDatabaseBackup && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          onExportDatabaseBackup();
+                        }}
+                        className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer border-t border-neutral-800"
+                      >
+                        <Database className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-white">Backup Database (JSON)</p>
+                          <p className="text-[10px] text-neutral-400">Download permanent data snapshot</p>
+                        </div>
+                      </button>
+                    )}
+
+                    {onImportDatabaseBackup && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          restoreInputRef.current?.click();
+                        }}
+                        className="w-full px-3 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left transition-colors cursor-pointer"
+                      >
+                        <Save className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div>
+                          <p className="font-semibold text-white">Restore Database</p>
+                          <p className="text-[10px] text-neutral-400">Import saved JSON backup file</p>
+                        </div>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
@@ -383,8 +424,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <RotateCcw className="w-4 h-4 text-neutral-400 shrink-0" />
                       <div>
-                        <p className="font-semibold">Reset Demo Data</p>
-                        <p className="text-[10px] text-neutral-500">Restore default demo catalog</p>
+                        <p className="font-semibold">Reset Application</p>
+                        <p className="text-[10px] text-neutral-500">Auto-saves backup before reset</p>
                       </div>
                     </button>
                   </div>
@@ -392,15 +433,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Quick Reset icon on desktop */}
-            <button
-              id="btn-reset-demo"
-              onClick={onResetDemoData}
-              className="hidden sm:inline-flex p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
-              title="Reset default sample inventory data"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
+            {/* Quick Database Backup icon on desktop */}
+            {onExportDatabaseBackup && (
+              <button
+                id="btn-backup-db-quick"
+                onClick={onExportDatabaseBackup}
+                className="hidden sm:inline-flex items-center gap-1 px-2 py-1.5 text-neutral-400 hover:text-emerald-300 hover:bg-neutral-900 border border-neutral-800/80 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                title="Download complete JSON backup of stock, deliveries, and catalog (Netlify & multi-device protected)"
+              >
+                <Database className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden lg:inline">Backup</span>
+              </button>
+            )}
 
             {/* User Profile & Security Dropdown */}
             {currentUser && (
@@ -519,6 +563,40 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
                         </button>
 
+                        {onExportDatabaseBackup && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              onExportDatabaseBackup();
+                            }}
+                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors border-t border-neutral-800"
+                          >
+                            <Database className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <div>
+                              <p className="font-medium text-white">Backup Database (JSON)</p>
+                              <p className="text-[10px] text-neutral-400">Save full copy to computer disk</p>
+                            </div>
+                          </button>
+                        )}
+
+                        {onImportDatabaseBackup && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              restoreInputRef.current?.click();
+                            }}
+                            className="w-full px-3.5 py-2 flex items-center gap-2.5 text-neutral-200 hover:bg-neutral-800 text-left cursor-pointer transition-colors"
+                          >
+                            <Save className="w-4 h-4 text-blue-400 shrink-0" />
+                            <div>
+                              <p className="font-medium text-white">Restore Database (JSON)</p>
+                              <p className="text-[10px] text-neutral-400">Restore state from JSON backup file</p>
+                            </div>
+                          </button>
+                        )}
+
                         {onLogout && (
                           <button
                             type="button"
@@ -541,6 +619,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             )}
+            {/* Hidden file input for database restore */}
+            <input
+              type="file"
+              ref={restoreInputRef}
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file && onImportDatabaseBackup) {
+                  onImportDatabaseBackup(file);
+                }
+                e.target.value = '';
+              }}
+            />
           </div>
         </div>
       </div>

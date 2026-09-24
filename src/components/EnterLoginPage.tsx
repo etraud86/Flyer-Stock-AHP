@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
+import { APP_VERSION_LABEL } from '../version';
 import {
   loginUser,
   authenticateWithServerOrLocal,
@@ -586,7 +587,7 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
           <InstitutionalCoFinancingLogos showLabels={false} />
-          <span className="text-neutral-400 text-[11px] font-mono">&copy; 2026 AHP</span>
+          <span className="text-neutral-400 text-[10px] font-mono">{APP_VERSION_LABEL}</span>
         </div>
       </footer>
     </div>

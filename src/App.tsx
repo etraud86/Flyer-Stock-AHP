@@ -45,6 +45,13 @@ import {
 } from './data/initialData';
 import { computeOfficeFlyerMetrics, computeWarehouseStock, TODAY_STR } from './utils/calculations';
 import { CheckCircle } from 'lucide-react';
+import {
+  loadInitialDatabaseState,
+  persistDatabaseState,
+  loadFromIndexedDb,
+  exportDatabaseBackup,
+  PERMANENT_STORAGE_KEYS,
+} from './utils/persistentDb';
 
 const STORAGE_KEYS = {
   FLYERS: 'flyerstock_clean_prod_v6',
@@ -80,134 +87,88 @@ const isDemoFlyer = (f: FlyerType) =>
   (f.sku && f.sku.startsWith('AHP-DEMO'));
 
 export default function App() {
-  // Purge legacy demo storage keys to guarantee a 100% clean application slate
+  // Load initial database state with multi-version salvage (safely migrates any historical records from netlify.app)
+  const [initialDb] = useState(() => loadInitialDatabaseState());
+
+  const [flyers, setFlyers] = useState<FlyerType[]>(initialDb.flyers);
+  const [offices, setOffices] = useState<TourismOffice[]>(initialDb.offices);
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(initialDb.deliveries);
+  const [batches, setBatches] = useState<StockInBatch[]>(initialDb.batches);
+  const [fairs, setFairs] = useState<TourismFair[]>(initialDb.fairs);
+  const [otherDeliveries, setOtherDeliveries] = useState<OtherDeliveryRecord[]>(initialDb.otherDeliveries);
+  const [metricOverrides, setMetricOverrides] = useState<Record<string, OfficeFlyerMetricOverride>>(
+    initialDb.metricOverrides || {}
+  );
+
+  // Hardened Multi-Layer Persistence:
+  // On startup, check IndexedDB. If local data was ever cleared by browser or incognito, recover it immediately!
   useEffect(() => {
-    const legacyKeys = [
-      'flyerstock_clean_flyers_v4',
-      'flyerstock_clean_deliveries_v4',
-      'flyerstock_clean_batches_v4',
-      'flyerstock_clean_fairs_v4',
-      'flyerstock_clean_other_deliveries_v4',
-      'flyerstock_clean_flyers_v5',
-      'flyerstock_clean_deliveries_v5',
-      'flyerstock_clean_batches_v5',
-      'flyerstock_clean_fairs_v5',
-      'flyerstock_clean_other_deliveries_v5',
-      'flyerstock_flyers_v3',
-      'flyerstock_deliveries_v3',
-    ];
-    legacyKeys.forEach((k) => localStorage.removeItem(k));
+    loadFromIndexedDb().then((idbState) => {
+      if (idbState) {
+        setDeliveries((curr) => (curr.length === 0 && idbState.deliveries?.length > 0 ? idbState.deliveries : curr));
+        setFairs((curr) => (curr.length === 0 && idbState.fairs?.length > 0 ? idbState.fairs : curr));
+        setOtherDeliveries((curr) => (curr.length === 0 && idbState.otherDeliveries?.length > 0 ? idbState.otherDeliveries : curr));
+        setBatches((curr) => (curr.length <= 1 && idbState.batches?.length > 1 ? idbState.batches : curr));
+        setFlyers((curr) => (curr.length <= 1 && idbState.flyers?.length > 1 ? idbState.flyers : curr));
+      }
+    }).catch(() => {});
   }, []);
 
   // Multi-Workstation & Multi-IP Central Sync:
-  // Fetch latest stock from central server on mount so all PCs and IPs share identical data
+  // Non-destructive fetch: server data is merged, and empty remote arrays NEVER overwrite user data entered on netlify.app
   useEffect(() => {
     fetch('/api/stock/data')
       .then((r) => r.json())
       .then((res) => {
         if (res && res.success && res.data) {
           const s = res.data;
-          if (Array.isArray(s.flyers) && s.flyers.length > 0) setFlyers(s.flyers);
-          if (Array.isArray(s.offices) && s.offices.length > 0) setOffices(s.offices);
-          if (Array.isArray(s.deliveries)) setDeliveries(s.deliveries);
-          if (Array.isArray(s.batches) && s.batches.length > 0) setBatches(s.batches);
-          if (Array.isArray(s.fairs)) setFairs(s.fairs);
-          if (Array.isArray(s.otherDeliveries)) setOtherDeliveries(s.otherDeliveries);
+          if (Array.isArray(s.flyers) && s.flyers.length > 0) {
+            setFlyers((curr) => {
+              const existingIds = new Set(curr.map((f) => f.id));
+              const additions = s.flyers.filter((f: FlyerType) => !existingIds.has(f.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.offices) && s.offices.length > 0) {
+            setOffices((curr) => {
+              const existingIds = new Set(curr.map((o) => o.id));
+              const additions = s.offices.filter((o: TourismOffice) => !existingIds.has(o.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          // Only add remote deliveries if server actually has records - never wipe local deliveries!
+          if (Array.isArray(s.deliveries) && s.deliveries.length > 0) {
+            setDeliveries((curr) => {
+              const existingIds = new Set(curr.map((d) => d.id));
+              const additions = s.deliveries.filter((d: DeliveryRecord) => !existingIds.has(d.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.batches) && s.batches.length > 0) {
+            setBatches((curr) => {
+              const existingIds = new Set(curr.map((b) => b.id));
+              const additions = s.batches.filter((b: StockInBatch) => !existingIds.has(b.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.fairs) && s.fairs.length > 0) {
+            setFairs((curr) => {
+              const existingIds = new Set(curr.map((f) => f.id));
+              const additions = s.fairs.filter((f: TourismFair) => !existingIds.has(f.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.otherDeliveries) && s.otherDeliveries.length > 0) {
+            setOtherDeliveries((curr) => {
+              const existingIds = new Set(curr.map((o) => o.id));
+              const additions = s.otherDeliveries.filter((o: OtherDeliveryRecord) => !existingIds.has(o.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
         }
       })
       .catch((err) => console.warn('[Stock Sync] Central server fetch notice:', err));
   }, []);
-
-  // Load persistent state or fallback to clean initial data
-  const [flyers, setFlyers] = useState<FlyerType[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FLYERS);
-    if (!saved) return INITIAL_FLYER_TYPES;
-    try {
-      const parsed: FlyerType[] = JSON.parse(saved);
-      const filtered = parsed.filter((f) => !isDemoFlyer(f));
-      if (filtered.length === 0) return INITIAL_FLYER_TYPES;
-      return filtered.map((f) => {
-        // Guarantee that Roteiro (AHP-ROT-45) or any flyer initialized with 10,000 has its central warehouse stock set
-        if (f.sku === 'AHP-ROT-45' || f.name?.toLowerCase().includes('roteiro')) {
-          return {
-            ...f,
-            warehouseStock: f.warehouseStock && f.warehouseStock > 0 ? f.warehouseStock : 10000,
-          };
-        }
-        return f;
-      });
-    } catch {
-      return INITIAL_FLYER_TYPES;
-    }
-  });
-
-  const [offices, setOffices] = useState<TourismOffice[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OFFICES) || localStorage.getItem('flyerstock_offices_v2');
-    const parsed: TourismOffice[] = saved ? JSON.parse(saved) : INITIAL_OFFICES;
-    const hqExists = parsed.some((o) => o.id === 'off-headquarters-ahp' || o.name.toLowerCase().includes('headquarters'));
-    if (!hqExists) {
-      const hq = INITIAL_OFFICES.find((o) => o.id === 'off-headquarters-ahp');
-      if (hq) {
-        return [hq, ...parsed];
-      }
-    }
-    return parsed;
-  });
-
-  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DELIVERIES);
-    if (!saved) return [];
-    try {
-      const parsed: DeliveryRecord[] = JSON.parse(saved);
-      return parsed.filter((d) => !DEMO_FLYER_IDS.has(d.flyerTypeId));
-    } catch {
-      return [];
-    }
-  });
-
-  const [batches, setBatches] = useState<StockInBatch[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BATCHES);
-    if (!saved) return INITIAL_BATCHES;
-    try {
-      const parsed: StockInBatch[] = JSON.parse(saved);
-      const filtered = parsed.filter((b) => !DEMO_FLYER_IDS.has(b.flyerTypeId));
-      return filtered.length > 0 ? filtered : INITIAL_BATCHES;
-    } catch {
-      return INITIAL_BATCHES;
-    }
-  });
-
-  const [fairs, setFairs] = useState<TourismFair[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FAIRS);
-    if (!saved) return [];
-    try {
-      const parsed: TourismFair[] = JSON.parse(saved);
-      return parsed.filter((f) => !f.items?.some((it) => DEMO_FLYER_IDS.has(it.flyerTypeId)));
-    } catch {
-      return [];
-    }
-  });
-
-  const [otherDeliveries, setOtherDeliveries] = useState<OtherDeliveryRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OTHER_DELIVERIES);
-    if (!saved) return [];
-    try {
-      const parsed: OtherDeliveryRecord[] = JSON.parse(saved);
-      return parsed.filter((od) => !DEMO_FLYER_IDS.has(od.flyerTypeId));
-    } catch {
-      return [];
-    }
-  });
-
-  // User customizations for depletion, burn rates, and time lapses
-  const [metricOverrides, setMetricOverrides] = useState<Record<string, OfficeFlyerMetricOverride>>(() => {
-    const saved = localStorage.getItem('flyerstock_metric_overrides_v1');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  useEffect(() => {
-    localStorage.setItem('flyerstock_metric_overrides_v1', JSON.stringify(metricOverrides));
-  }, [metricOverrides]);
 
   const handleUpdateMetricOverride = (key: string, override: Partial<OfficeFlyerMetricOverride>) => {
     setMetricOverrides((prev) => ({
@@ -317,30 +278,30 @@ export default function App() {
   const [signatureOffice, setSignatureOffice] = useState<TourismOffice | null>(null);
   const [signatureFlyer, setSignatureFlyer] = useState<FlyerType | null>(null);
 
-  // Sync with LocalStorage
+  // Multi-Layer Database Persistence (Permanent Keys + IndexedDB + Legacy Keys)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FLYERS, JSON.stringify(flyers));
-  }, [flyers]);
+    // 1. Write to hardened multi-layer database (IndexedDB + Permanent keys + Emergency Snapshot)
+    persistDatabaseState({
+      flyers,
+      offices,
+      deliveries,
+      batches,
+      fairs,
+      otherDeliveries,
+      metricOverrides,
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OFFICES, JSON.stringify(offices));
-  }, [offices]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DELIVERIES, JSON.stringify(deliveries));
-  }, [deliveries]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BATCHES, JSON.stringify(batches));
-  }, [batches]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FAIRS, JSON.stringify(fairs));
-  }, [fairs]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
-  }, [otherDeliveries]);
+    // 2. Also keep legacy keys updated for 100% backwards compatibility
+    try {
+      localStorage.setItem(STORAGE_KEYS.FLYERS, JSON.stringify(flyers));
+      localStorage.setItem(STORAGE_KEYS.OFFICES, JSON.stringify(offices));
+      localStorage.setItem(STORAGE_KEYS.DELIVERIES, JSON.stringify(deliveries));
+      localStorage.setItem(STORAGE_KEYS.BATCHES, JSON.stringify(batches));
+      localStorage.setItem(STORAGE_KEYS.FAIRS, JSON.stringify(fairs));
+      localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
+      localStorage.setItem('flyerstock_metric_overrides_v1', JSON.stringify(metricOverrides));
+    } catch (e) {}
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides]);
 
   // Synchronize stock changes to central server so all PCs, tablets, and IPs stay unified
   useEffect(() => {
@@ -1066,14 +1027,59 @@ export default function App() {
     handleUpdateFlyerStock(flyerId, targetStock, {}, 'Direct Excel cell adjustment');
   };
 
+  const handleExportDatabaseBackup = () => {
+    exportDatabaseBackup({
+      flyers,
+      offices,
+      deliveries,
+      batches,
+      fairs,
+      otherDeliveries,
+      metricOverrides,
+    });
+    showToast('Database backup downloaded successfully (JSON).');
+  };
+
+  const handleImportDatabaseBackup = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (parsed) {
+          if (Array.isArray(parsed.flyers) && parsed.flyers.length > 0) setFlyers(parsed.flyers);
+          if (Array.isArray(parsed.offices) && parsed.offices.length > 0) setOffices(parsed.offices);
+          if (Array.isArray(parsed.deliveries)) setDeliveries(parsed.deliveries);
+          if (Array.isArray(parsed.batches) && parsed.batches.length > 0) setBatches(parsed.batches);
+          if (Array.isArray(parsed.fairs)) setFairs(parsed.fairs);
+          if (Array.isArray(parsed.otherDeliveries)) setOtherDeliveries(parsed.otherDeliveries);
+          if (parsed.metricOverrides) setMetricOverrides(parsed.metricOverrides);
+          showToast('Database successfully restored from backup file!');
+        }
+      } catch (err) {
+        showToast('Error restoring database: invalid backup file format.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleResetDemoData = () => {
-    if (window.confirm('Reset application to a clean slate (empty flyers and records ready for your data)?')) {
-      setFlyers([]);
+    if (window.confirm('Reset application data? An emergency backup will be downloaded before resetting.')) {
+      exportDatabaseBackup({
+        flyers,
+        offices,
+        deliveries,
+        batches,
+        fairs,
+        otherDeliveries,
+        metricOverrides,
+      });
+      setFlyers(INITIAL_FLYER_TYPES);
       setDeliveries([]);
-      setBatches([]);
+      setBatches(INITIAL_BATCHES);
       setFairs([]);
       setOtherDeliveries([]);
-      showToast('Application reset to a clean state. Ready for your flyer information!');
+      showToast('Database reset. Your previous data was saved to a backup file.');
     }
   };
 
@@ -1138,6 +1144,8 @@ export default function App() {
           onOpenAddFlyer={handleOpenAddFlyer}
           onOpenOfficesDirectory={handleOpenOfficesDirectory}
           onResetDemoData={handleResetDemoData}
+          onExportDatabaseBackup={handleExportDatabaseBackup}
+          onImportDatabaseBackup={handleImportDatabaseBackup}
           currentUser={session.user}
           onLogout={handleLogout}
           onOpenChangePassword={() => handleOpenUserManagement('change_password')}
