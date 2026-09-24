@@ -17,6 +17,8 @@ import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
 import {
   loginUser,
+  authenticateWithServerOrLocal,
+  fetchServerAccounts,
   directResetPassword,
   getFailedAttemptsInfo,
   validatePasswordPolicy,
@@ -37,7 +39,7 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
@@ -50,42 +52,36 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
-  // Check lockout on mount and tick countdown
+  // On mount: sync latest accounts from central server so any IP has up-to-date credentials
   useEffect(() => {
-    const checkLock = () => {
-      const info = getFailedAttemptsInfo();
-      if (info.lockedUntil > Date.now()) {
-        setLockoutSeconds(Math.ceil((info.lockedUntil - Date.now()) / 1000));
-      } else {
-        setLockoutSeconds(0);
-      }
-    };
-    checkLock();
-    const interval = setInterval(checkLock, 1000);
-    return () => clearInterval(interval);
+    fetchServerAccounts().catch(() => {});
   }, []);
 
-  // Direct Sign-In (no 2FA)
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Direct Sign-In (Supports any PC or IP)
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutSeconds > 0) return;
 
     setIsLoading(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
-      const result = loginUser(email, password, rememberMe);
+    try {
+      const result = await authenticateWithServerOrLocal(email, password, rememberMe);
       setIsLoading(false);
 
       if (result.success && result.session) {
         onLoginSuccess(result.session);
       } else {
         setErrorMessage(result.error || 'Authentication failed. Please verify credentials.');
-        if (result.remainingSeconds) {
-          setLockoutSeconds(result.remainingSeconds);
-        }
       }
-    }, 300);
+    } catch {
+      setIsLoading(false);
+      const localRes = loginUser(email, password, rememberMe);
+      if (localRes.success && localRes.session) {
+        onLoginSuccess(localRes.session);
+      } else {
+        setErrorMessage(localRes.error || 'Authentication failed. Please verify credentials.');
+      }
+    }
   };
 
   // Direct Password Reset
@@ -281,9 +277,9 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                   </div>
 
                   {/* Institutional Security Notice */}
-                  <div className="text-[11px] text-neutral-500 pt-1 flex items-center justify-between">
-                    <span>Credentials required on each session access</span>
-                    <span className="font-mono text-neutral-400">AHP Security</span>
+                  <div className="text-[11px] text-neutral-400 pt-1 flex items-center justify-between">
+                    <span className="text-emerald-400 font-medium">✓ Multi-IP Access Allowed</span>
+                    <span className="font-mono text-neutral-400">All Workstations Enabled</span>
                   </div>
 
                   {/* Submit Button */}

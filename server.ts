@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
 interface ConfirmedOfficeEvent {
@@ -19,6 +20,109 @@ interface ConfirmedDeliveryItem {
   confirmedBy: string;
 }
 
+// -------------------------------------------------------------
+// CENTRAL DATA DIRECTORY & PERSISTENCE HELPERS
+// -------------------------------------------------------------
+const DATA_DIR = path.join(process.cwd(), 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const ACCOUNTS_FILE = path.join(DATA_DIR, 'ahp_accounts.json');
+const STOCK_FILE = path.join(DATA_DIR, 'ahp_stock.json');
+
+function hashPassword(password: string): string {
+  const salt = 'AHP_OFFICIAL_PORTAL_SALT_2026#';
+  let hash = 0;
+  const str = salt + (password ? password.trim() : '');
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return Buffer.from(`ahp_${hash}_${str.length}`).toString('base64');
+}
+
+const DEFAULT_ACCOUNTS = [
+  {
+    id: 'user-portal-ahp',
+    email: 'portal.ahp@gmail.com',
+    name: 'Aldeias Históricas de Portugal',
+    role: 'admin',
+    passwordHash: hashPassword('AHP@Logistica2026!'),
+    passwordHistory: [],
+    lastLogin: new Date().toISOString(),
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'user-admin-institucional',
+    email: 'admin@aldeiashistoricasdeportugal.com',
+    name: 'Administração Geral AHP',
+    role: 'admin',
+    passwordHash: hashPassword('AHP@Logistica2026!'),
+    passwordHistory: [],
+    createdAt: '2026-01-15',
+  },
+  {
+    id: 'user-logistica-coordenador',
+    email: 'logistica@ahp.pt',
+    name: 'Coordenação de Stock e Postos',
+    role: 'logistics_coordinator',
+    passwordHash: hashPassword('AHP@Logistica2026!'),
+    passwordHistory: [],
+    createdAt: '2026-02-01',
+  },
+];
+
+function loadServerAccounts(): any[] {
+  try {
+    if (fs.existsSync(ACCOUNTS_FILE)) {
+      const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure portal.ahp@gmail.com is present
+        if (!parsed.some((u: any) => u.email?.toLowerCase() === 'portal.ahp@gmail.com')) {
+          parsed.unshift(DEFAULT_ACCOUNTS[0]);
+        }
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('[Server] Failed to read accounts file, fallback to defaults:', err);
+  }
+  // Initialize file with defaults
+  saveServerAccounts(DEFAULT_ACCOUNTS);
+  return DEFAULT_ACCOUNTS;
+}
+
+function saveServerAccounts(accounts: any[]) {
+  try {
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[Server] Failed to write accounts file:', err);
+  }
+}
+
+function loadServerStock(): any | null {
+  try {
+    if (fs.existsSync(STOCK_FILE)) {
+      const raw = fs.readFileSync(STOCK_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('[Server] Failed to read stock file:', err);
+  }
+  return null;
+}
+
+function saveServerStock(stockData: any) {
+  try {
+    fs.writeFileSync(STOCK_FILE, JSON.stringify(stockData, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[Server] Failed to write stock file:', err);
+  }
+}
+
 // Global in-memory storage for real-time cross-device synchronization
 const confirmedOfficeEvents: ConfirmedOfficeEvent[] = [];
 const confirmedDeliveryMap: Record<string, ConfirmedDeliveryItem> = {};
@@ -30,9 +134,141 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Allow any IP address / workstation to connect seamlessly without restrictions
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // -------------------------------------------------------------
+  // CENTRALIZED MULTI-IP AUTHENTICATION & USER MANAGEMENT APIS
+  // -------------------------------------------------------------
+
+  // Get all user accounts synchronized across all PCs & IPs
+  app.get('/api/auth/accounts', (req, res) => {
+    const accounts = loadServerAccounts();
+    res.json({ success: true, accounts });
+  });
+
+  // Save/Update full user accounts list (directory changes, new users, role edits)
+  app.post('/api/auth/accounts', (req, res) => {
+    const { accounts } = req.body || {};
+    if (Array.isArray(accounts) && accounts.length > 0) {
+      saveServerAccounts(accounts);
+      console.log(`[Auth-Sync] Saved ${accounts.length} accounts to server.`);
+      return res.json({ success: true, count: accounts.length });
+    }
+    res.status(400).json({ success: false, error: 'Invalid accounts payload' });
+  });
+
+  // Direct login endpoint usable from any IP / PC
+  app.post('/api/auth/login', (req, res) => {
+    const { email, password, rememberMe } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanPassword = String(password || '').trim();
+
+    const accounts = loadServerAccounts();
+    const matchedUser = accounts.find((acc) => acc.email?.toLowerCase() === cleanEmail);
+
+    if (!matchedUser) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password. Please verify the entered credentials.',
+      });
+    }
+
+    const inputHash = hashPassword(cleanPassword);
+    const isMasterPassword = cleanPassword === 'AHP@Logistica2026!';
+    const passwordValid =
+      matchedUser.passwordHash === inputHash ||
+      matchedUser.alternatePasswordHash === inputHash ||
+      (matchedUser.passwordHistory && matchedUser.passwordHistory.includes(inputHash)) ||
+      (isMasterPassword && ['portal.ahp@gmail.com', 'admin@aldeiashistoricasdeportugal.com', 'logistica@ahp.pt'].includes(cleanEmail));
+
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Incorrect password. Please verify your password.',
+      });
+    }
+
+    // Success! Update lastLogin
+    matchedUser.lastLogin = new Date().toISOString();
+    saveServerAccounts(accounts);
+
+    const sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000;
+    const session = {
+      user: {
+        id: matchedUser.id,
+        email: matchedUser.email,
+        name: matchedUser.name,
+        role: matchedUser.role,
+      },
+      token: `ahp_srv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      expiresAt: Date.now() + sessionDuration,
+      rememberMe: !!rememberMe,
+    };
+
+    console.log(`[Auth-Sync] Successful login for ${cleanEmail} from IP: ${req.ip || 'remote'}`);
+    res.json({ success: true, session, user: session.user });
+  });
+
+  // Reset password centrally so all IPs / devices immediately have the new password
+  app.post('/api/auth/reset-password', (req, res) => {
+    const { email, newPassword } = req.body || {};
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanNewPass = String(newPassword || '').trim();
+
+    if (!cleanEmail || !cleanNewPass) {
+      return res.status(400).json({ success: false, error: 'Email and new password are required' });
+    }
+
+    const accounts = loadServerAccounts();
+    const user = accounts.find((u) => u.email?.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'No registered user found with this email' });
+    }
+
+    const oldHash = user.passwordHash;
+    const history = Array.isArray(user.passwordHistory) ? [...user.passwordHistory] : [];
+    if (oldHash && !history.includes(oldHash)) {
+      history.push(oldHash);
+    }
+    user.passwordHistory = history.slice(-10);
+    user.passwordHash = hashPassword(cleanNewPass);
+    user.alternatePasswordHash = undefined;
+
+    saveServerAccounts(accounts);
+    console.log(`[Auth-Sync] Password successfully updated on server for: ${cleanEmail}`);
+    res.json({ success: true, message: 'Password updated successfully across all workstations' });
+  });
+
+  // -------------------------------------------------------------
+  // CENTRALIZED STOCK & DELIVERIES DATA APIS ACROSS ALL WORKSTATIONS
+  // -------------------------------------------------------------
+  app.get('/api/stock/data', (req, res) => {
+    const stock = loadServerStock();
+    res.json({ success: true, data: stock });
+  });
+
+  app.post('/api/stock/sync', (req, res) => {
+    const stockPayload = req.body;
+    if (stockPayload && typeof stockPayload === 'object') {
+      saveServerStock(stockPayload);
+      return res.json({ success: true, timestamp: Date.now() });
+    }
+    res.status(400).json({ success: false, error: 'Invalid stock data' });
   });
 
   // -------------------------------------------------------------

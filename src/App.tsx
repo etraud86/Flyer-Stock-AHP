@@ -99,6 +99,25 @@ export default function App() {
     legacyKeys.forEach((k) => localStorage.removeItem(k));
   }, []);
 
+  // Multi-Workstation & Multi-IP Central Sync:
+  // Fetch latest stock from central server on mount so all PCs and IPs share identical data
+  useEffect(() => {
+    fetch('/api/stock/data')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res && res.success && res.data) {
+          const s = res.data;
+          if (Array.isArray(s.flyers) && s.flyers.length > 0) setFlyers(s.flyers);
+          if (Array.isArray(s.offices) && s.offices.length > 0) setOffices(s.offices);
+          if (Array.isArray(s.deliveries)) setDeliveries(s.deliveries);
+          if (Array.isArray(s.batches) && s.batches.length > 0) setBatches(s.batches);
+          if (Array.isArray(s.fairs)) setFairs(s.fairs);
+          if (Array.isArray(s.otherDeliveries)) setOtherDeliveries(s.otherDeliveries);
+        }
+      })
+      .catch((err) => console.warn('[Stock Sync] Central server fetch notice:', err));
+  }, []);
+
   // Load persistent state or fallback to clean initial data
   const [flyers, setFlyers] = useState<FlyerType[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.FLYERS);
@@ -322,6 +341,29 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
   }, [otherDeliveries]);
+
+  // Synchronize stock changes to central server so all PCs, tablets, and IPs stay unified
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        fetch('/api/stock/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flyers,
+            offices,
+            deliveries,
+            batches,
+            fairs,
+            otherDeliveries,
+          }),
+        }).catch((err) => console.warn('[Stock Sync] Central broadcast notice:', err));
+      } catch (e) {
+        console.warn('[Stock Sync] Central broadcast error:', e);
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries]);
 
   // Keep warehouse stock batches strictly connected to registered flyer materials
   useEffect(() => {
