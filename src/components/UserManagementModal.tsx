@@ -19,6 +19,7 @@ import {
   Check,
   Building2,
   ShieldAlert,
+  Pencil,
 } from 'lucide-react';
 import {
   updateAccountPassword,
@@ -26,6 +27,9 @@ import {
   getStoredAccounts,
   adminResetUserPassword,
   deleteUserAccount,
+  updateUserAccount,
+  validatePasswordPolicy,
+  generateCompliantPassword,
   StoredUserAccount,
 } from '../utils/auth';
 import { AuthUser } from '../types';
@@ -36,6 +40,7 @@ interface UserManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccessToast: (msg: string) => void;
+  onUserUpdated?: (user: AuthUser) => void;
   initialTab?: 'change_password' | 'register_user' | 'users_list';
 }
 
@@ -44,6 +49,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   isOpen,
   onClose,
   onSuccessToast,
+  onUserUpdated,
   initialTab = 'change_password',
 }) => {
   const [activeTab, setActiveTab] = useState<'change_password' | 'register_user' | 'users_list'>(
@@ -64,9 +70,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   // Register User state
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regRole, setRegRole] = useState<'admin' | 'logistics_coordinator' | 'manager'>(
-    'logistics_coordinator'
-  );
+  const [regRole, setRegRole] = useState<string>('logistics_coordinator');
+  const [isCustomRegRole, setIsCustomRegRole] = useState<boolean>(false);
   const [regPassword, setRegPassword] = useState('');
   const [regShowPassword, setRegShowPassword] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
@@ -78,6 +83,15 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState<string | null>(null);
 
+  // Edit User Directory State
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editRole, setEditRole] = useState<string>('logistics_coordinator');
+  const [isCustomEditRole, setIsCustomEditRole] = useState<boolean>(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const refreshAccounts = () => {
@@ -88,8 +102,8 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     e.preventDefault();
     setChangePassError(null);
 
-    if (newPassword.length < 6) {
-      setChangePassError('New password must contain at least 6 characters.');
+    if (!newPassword || newPassword.trim().length === 0) {
+      setChangePassError('Please enter a new password.');
       return;
     }
 
@@ -136,18 +150,16 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   };
 
   const handleGenerateStrongPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
-    let pass = 'AHP@';
-    for (let i = 0; i < 8; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    const pass = generateCompliantPassword();
     setRegPassword(pass);
     setRegShowPassword(true);
   };
 
   const handleAdminResetPassword = (userId: string) => {
-    if (!resetNewPass || resetNewPass.length < 6) {
-      setResetError('New password must contain at least 6 characters.');
+    const targetUser = accounts.find((u) => u.id === userId);
+    const policy = validatePasswordPolicy(resetNewPass, targetUser);
+    if (!policy.valid) {
+      setResetError(policy.error || 'Password does not meet institutional requirements.');
       return;
     }
     const res = adminResetUserPassword(userId, resetNewPass);
@@ -173,6 +185,79 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       onSuccessToast('User account removed.');
     } else {
       alert(res.error || 'Cannot delete user.');
+    }
+  };
+
+  const startEditingUser = (user: StoredUserAccount) => {
+    setResetTargetUserId(null); // Close password reset if open
+    setEditingUserId(user.id);
+    setEditName(user.name);
+    setEditEmail(user.email);
+    setEditRole(user.role);
+    setIsCustomEditRole(!['admin', 'logistics_coordinator', 'manager'].includes(user.role));
+    setEditError(null);
+    setEditSuccess(null);
+  };
+
+  const cancelEditingUser = () => {
+    setEditingUserId(null);
+    setEditError(null);
+    setEditSuccess(null);
+  };
+
+  const handleQuickChangeRole = (userId: string, newRole: string) => {
+    const res = updateUserAccount(userId, { role: newRole });
+    if (res.success && res.user) {
+      refreshAccounts();
+      const roleLabel = newRole === 'admin'
+        ? 'Admin'
+        : newRole === 'logistics_coordinator'
+        ? 'Logistics Coordinator'
+        : newRole === 'manager'
+        ? 'Regional Manager'
+        : newRole;
+      onSuccessToast(`Role updated to "${roleLabel}" for ${res.user.name}`);
+      if (currentUser.id === userId && onUserUpdated) {
+        onUserUpdated({
+          id: res.user.id,
+          email: res.user.email,
+          name: res.user.name,
+          role: res.user.role,
+        });
+      }
+    } else {
+      alert(res.error || 'Failed to update account role.');
+    }
+  };
+
+  const handleSaveUserEdit = (userId: string) => {
+    setEditError(null);
+    setEditSuccess(null);
+
+    const result = updateUserAccount(userId, {
+      name: editName,
+      email: editEmail,
+      role: editRole,
+    });
+
+    if (result.success && result.user) {
+      setEditSuccess('User account updated successfully!');
+      refreshAccounts();
+      onSuccessToast(`User "${result.user.name}" updated successfully!`);
+      if (currentUser.id === userId && onUserUpdated) {
+        onUserUpdated({
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name,
+          role: result.user.role,
+        });
+      }
+      setTimeout(() => {
+        setEditingUserId(null);
+        setEditSuccess(null);
+      }, 1000);
+    } else {
+      setEditError(result.error || 'Failed to update user profile.');
     }
   };
 
@@ -304,50 +389,94 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
               </div>
 
               {/* New Password */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  New Password *
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPasswords ? 'text' : 'password'}
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
+              {(() => {
+                const targetAccount = accounts.find((u) => u.id === currentUser.id);
+                const policy = validatePasswordPolicy(newPassword, targetAccount);
+                const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
-              {/* Confirm New Password */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Confirm New Password *
-                </label>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPasswords ? 'text' : 'password'}
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repeat new password"
-                    className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                </div>
-              </div>
+                return (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-neutral-300">
+                          New Password *
+                        </label>
+                        <span className="text-[10px] text-amber-400 font-medium">
+                          Requires Capital &amp; Special Symbol
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showPasswords ? 'text' : 'password'}
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="e.g. AHP@Seguranca2026!"
+                          className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                      </div>
+                    </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>Save New Password</span>
-                </button>
-              </div>
+                    {/* Confirm New Password */}
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                        Confirm New Password *
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type={showPasswords ? 'text' : 'password'}
+                          required
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Repeat new password"
+                          className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Policy checklist */}
+                    <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                      <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                        Security Rules:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className={`flex items-center gap-1.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>At least 8 chars</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>Capital (A-Z)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>Special Symbol (!@#$)</span>
+                        </div>
+                        <div className={`flex items-center gap-1.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                          <CheckCircle2 className={`w-3.5 h-3.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                          <span>No repeat</span>
+                        </div>
+                      </div>
+                      {confirmPassword.length > 0 && !passwordsMatch && (
+                        <p className="text-amber-400 text-[10px] pt-0.5">⚠️ Passwords do not match.</p>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={changePassSuccess || !policy.valid || !passwordsMatch}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Save New Password</span>
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </form>
           )}
 
@@ -416,18 +545,45 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
               {/* Role Selection */}
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Account Role *
-                </label>
-                <select
-                  value={regRole}
-                  onChange={(e) => setRegRole(e.target.value as any)}
-                  className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                >
-                  <option value="logistics_coordinator">Logistics Coordinator (Standard)</option>
-                  <option value="admin">Administrator (Full Rights)</option>
-                  <option value="manager">Regional Tourism Manager</option>
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-neutral-300">
+                    Account Role *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomRegRole(!isCustomRegRole)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline"
+                  >
+                    {isCustomRegRole ? 'Choose preset role' : 'Write custom role'}
+                  </button>
+                </div>
+                {isCustomRegRole ? (
+                  <input
+                    type="text"
+                    required
+                    value={regRole}
+                    onChange={(e) => setRegRole(e.target.value)}
+                    placeholder="e.g. Field Supervisor, Regional Auditor, Staff Coordinator"
+                    className="w-full px-3 py-2 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                ) : (
+                  <select
+                    value={['admin', 'logistics_coordinator', 'manager'].includes(regRole) ? regRole : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        setIsCustomRegRole(true);
+                      } else {
+                        setRegRole(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="logistics_coordinator">Logistics Coordinator (Standard)</option>
+                    <option value="admin">Administrator (Full Rights)</option>
+                    <option value="manager">Regional Tourism Manager</option>
+                    <option value="custom">Custom Role... (Write any custom title)</option>
+                  </select>
+                )}
               </div>
 
               {/* Password with Generator */}
@@ -442,7 +598,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer font-medium"
                   >
                     <Sparkles className="w-3 h-3" />
-                    <span>Auto-Generate Secure</span>
+                    <span>Auto-Generate Compliant</span>
                   </button>
                 </div>
                 <div className="relative">
@@ -452,7 +608,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     required
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="Enter or auto-generate password"
+                    placeholder="e.g. AHP@Operador2026!"
                     className="w-full pl-9 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                   <button
@@ -465,10 +621,40 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 </div>
               </div>
 
+              {(() => {
+                const regPolicy = validatePasswordPolicy(regPassword);
+                return (
+                  <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                    <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                      Required Password Rules:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Min. 8 characters</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Capital Letter (A-Z)</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${regPolicy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                        <CheckCircle2 className={`w-3.5 h-3.5 ${regPolicy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <span>Special Symbol (!@#$)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Salted encryption</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  disabled={regSuccess || !validatePasswordPolicy(regPassword).valid || !regName || !regEmail}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>Register &amp; Activate User</span>
@@ -515,6 +701,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                 {accounts.map((acc) => {
                   const isCurrent = acc.id === currentUser.id;
                   const isResettingThis = resetTargetUserId === acc.id;
+                  const isEditingThis = editingUserId === acc.id;
 
                   return (
                     <div
@@ -534,27 +721,60 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                                   You
                                 </span>
                               )}
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  acc.role === 'admin'
-                                    ? 'bg-amber-950/80 text-amber-300 border border-amber-800'
-                                    : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                                }`}
-                              >
-                                {acc.role}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <select
+                                  value={acc.role}
+                                  onChange={(e) => handleQuickChangeRole(acc.id, e.target.value)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                                    acc.role === 'admin'
+                                      ? 'bg-amber-950/90 text-amber-300 border-amber-700/80 hover:bg-amber-900/90'
+                                      : acc.role === 'manager'
+                                      ? 'bg-blue-950/90 text-blue-300 border-blue-700/80 hover:bg-blue-900/90'
+                                      : 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90'
+                                  }`}
+                                  title="Click to directly change account role"
+                                >
+                                  <option value="admin" className="bg-neutral-900 text-amber-300 font-bold">Admin (Full Rights)</option>
+                                  <option value="logistics_coordinator" className="bg-neutral-900 text-emerald-300 font-bold">Logistics Coordinator</option>
+                                  <option value="manager" className="bg-neutral-900 text-blue-300 font-bold">Regional Manager</option>
+                                  {!['admin', 'logistics_coordinator', 'manager'].includes(acc.role) && (
+                                    <option value={acc.role} className="bg-neutral-900 text-purple-300 font-bold">{acc.role.toUpperCase()}</option>
+                                  )}
+                                </select>
+                              </div>
                             </div>
                             <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{acc.email}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isEditingThis) {
+                                cancelEditingUser();
+                              } else {
+                                startEditingUser(acc);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer border ${
+                              isEditingThis
+                                ? 'bg-emerald-600 text-white border-emerald-500'
+                                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700 hover:text-white'
+                            }`}
+                            title="Edit user details in directory"
+                          >
+                            <Pencil className="w-3 h-3 text-emerald-400" />
+                            <span>{isEditingThis ? 'Close Edit' : 'Edit'}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
                               if (isResettingThis) {
                                 setResetTargetUserId(null);
                               } else {
+                                cancelEditingUser();
                                 setResetTargetUserId(acc.id);
                                 setResetNewPass('');
                               }
@@ -579,23 +799,175 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                         </div>
                       </div>
 
+                      {/* Edit User Form Inline */}
+                      {isEditingThis && (
+                        <div className="mt-2.5 pt-3 border-t border-neutral-800 space-y-3 bg-neutral-900/80 p-3.5 rounded-xl border border-neutral-700/60 animate-in fade-in">
+                          <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 bg-emerald-950 border border-emerald-800 text-emerald-400 rounded-md">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-white block leading-tight">Edit Directory User</span>
+                                <span className="text-[10px] text-neutral-400">Update operator name, email address, or administrative privileges</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={cancelEditingUser}
+                              className="p-1 text-neutral-400 hover:text-white rounded hover:bg-neutral-800 cursor-pointer"
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {editError && (
+                            <div className="p-2.5 bg-red-950/80 border border-red-500/50 rounded-lg text-red-200 text-xs flex items-center gap-2">
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                              <span>{editError}</span>
+                            </div>
+                          )}
+
+                          {editSuccess && (
+                            <div className="p-2.5 bg-emerald-950/80 border border-emerald-500/50 rounded-lg text-emerald-200 text-xs flex items-center gap-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>{editSuccess}</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                                Full Name / Operator *
+                              </label>
+                              <div className="relative">
+                                <User className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="text"
+                                  required
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  placeholder="e.g. Aldeias Históricas de Portugal"
+                                  className="w-full pl-8 pr-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-neutral-300 mb-1">
+                                Email Address *
+                              </label>
+                              <div className="relative">
+                                <Mail className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="email"
+                                  required
+                                  value={editEmail}
+                                  onChange={(e) => setEditEmail(e.target.value)}
+                                  placeholder="e.g. portal.ahp@gmail.com"
+                                  className="w-full pl-8 pr-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-semibold text-neutral-300">
+                                Account Role &amp; Permissions *
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setIsCustomEditRole(!isCustomEditRole)}
+                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline"
+                              >
+                                {isCustomEditRole ? 'Select preset role' : 'Write custom role name'}
+                              </button>
+                            </div>
+
+                            {isCustomEditRole ? (
+                              <input
+                                type="text"
+                                required
+                                value={editRole}
+                                onChange={(e) => setEditRole(e.target.value)}
+                                placeholder="e.g. Director of Operations, Regional Auditor, Supervisor"
+                                className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              />
+                            ) : (
+                              <select
+                                value={['admin', 'logistics_coordinator', 'manager'].includes(editRole) ? editRole : 'custom'}
+                                onChange={(e) => {
+                                  if (e.target.value === 'custom') {
+                                    setIsCustomEditRole(true);
+                                  } else {
+                                    setEditRole(e.target.value);
+                                  }
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-neutral-950 border border-neutral-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                              >
+                                <option value="admin">Administrator (Full Rights &amp; Directory Control)</option>
+                                <option value="logistics_coordinator">Logistics Coordinator (Standard Distribution Logging)</option>
+                                <option value="manager">Regional Tourism Manager (Analytics &amp; Circuit Auditing)</option>
+                                <option value="custom">Custom Role... (Write any custom title)</option>
+                              </select>
+                            )}
+                            <span className="text-[10px] text-neutral-400 mt-1 block">
+                              Account role is fully editable for all users at any time.
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-neutral-800">
+                            <button
+                              type="button"
+                              onClick={cancelEditingUser}
+                              className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveUserEdit(acc.id)}
+                              disabled={!editName.trim() || !editEmail.trim()}
+                              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Save Changes</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Reset Password Form Inline */}
                       {isResettingThis && (
-                        <div className="mt-2 pt-2 border-t border-neutral-800/80 flex items-center gap-2 animate-in fade-in">
-                          <input
-                            type="text"
-                            value={resetNewPass}
-                            onChange={(e) => setResetNewPass(e.target.value)}
-                            placeholder="New password (min 6 chars)"
-                            className="flex-1 px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleAdminResetPassword(acc.id)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer"
-                          >
-                            Save
-                          </button>
+                        <div className="mt-2 pt-2 border-t border-neutral-800/80 space-y-2 animate-in fade-in">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={resetNewPass}
+                              onChange={(e) => setResetNewPass(e.target.value)}
+                              placeholder="e.g. AHP@Seguranca2026!"
+                              className="flex-1 px-2.5 py-1.5 bg-neutral-900 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setResetNewPass(generateCompliantPassword())}
+                              className="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 border border-neutral-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                            >
+                              Auto-Generate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAdminResetPassword(acc.id)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap"
+                            >
+                              Save
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-neutral-400">
+                            Must contain at least 8 characters, 1 capital letter, 1 special character, and cannot repeat previous password.
+                          </p>
                         </div>
                       )}
                     </div>

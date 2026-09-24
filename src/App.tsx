@@ -7,7 +7,7 @@ import { TourismFairsView } from './components/TourismFairsView';
 import { OtherDeliveriesView } from './components/OtherDeliveriesView';
 import { TourismOfficesHubView } from './components/TourismOfficesHubView';
 import { PrintableDeliveryArchiveModal } from './components/PrintableDeliveryArchiveModal';
-import { OfficeQRCodeScannerModal } from './components/OfficeQRCodeScannerModal';
+import { DigitalSignatureModal } from './components/DigitalSignatureModal';
 import { MobileOfficeValidationView } from './components/MobileOfficeValidationView';
 import { DeliveryModal } from './components/DeliveryModal';
 import { StockInModal } from './components/StockInModal';
@@ -45,67 +45,60 @@ import {
 } from './data/initialData';
 import { computeOfficeFlyerMetrics, computeWarehouseStock, TODAY_STR } from './utils/calculations';
 import { CheckCircle } from 'lucide-react';
+import {
+  loadInitialDatabaseState,
+  persistDatabaseState,
+  loadFromIndexedDb,
+  exportDatabaseBackup,
+  PERMANENT_STORAGE_KEYS,
+} from './utils/persistentDb';
 
 const STORAGE_KEYS = {
-  FLYERS: 'flyerstock_flyers_v2',
-  OFFICES: 'flyerstock_offices_v2',
-  DELIVERIES: 'flyerstock_deliveries_v2',
-  BATCHES: 'flyerstock_batches_v2',
-  FAIRS: 'flyerstock_fairs_v2',
-  OTHER_DELIVERIES: 'flyerstock_other_deliveries_v2',
+  FLYERS: 'flyerstock_clean_prod_v6',
+  OFFICES: 'flyerstock_clean_offices_prod_v6',
+  DELIVERIES: 'flyerstock_clean_deliveries_prod_v6',
+  BATCHES: 'flyerstock_clean_batches_prod_v6',
+  FAIRS: 'flyerstock_clean_fairs_prod_v6',
+  OTHER_DELIVERIES: 'flyerstock_clean_other_deliveries_prod_v6',
 };
 
+// Known demo flyer identifiers to purge completely
+const DEMO_FLYER_SKUS = new Set([
+  'AHP-MAP-01',
+  'AHP-GAS-02',
+  'AHP-GR22-03',
+  'AHP-JUD-04',
+  'AHP-FAM-05',
+  'AHP-NAT-06',
+]);
+const DEMO_FLYER_IDS = new Set([
+  'flyer-1',
+  'flyer-2',
+  'flyer-3',
+  'flyer-4',
+  'flyer-5',
+  'flyer-6',
+  'flyer-custom-fallback',
+]);
+
+const isDemoFlyer = (f: FlyerType) =>
+  DEMO_FLYER_IDS.has(f.id) ||
+  DEMO_FLYER_SKUS.has(f.sku) ||
+  (f.sku && f.sku.startsWith('AHP-DEMO'));
+
 export default function App() {
-  // Load persistent state or fallback to rich initial data
-  const [flyers, setFlyers] = useState<FlyerType[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FLYERS);
-    return saved ? JSON.parse(saved) : INITIAL_FLYER_TYPES;
-  });
+  // Load initial database state with multi-version salvage (safely migrates any historical records from netlify.app)
+  const [initialDb] = useState(() => loadInitialDatabaseState());
 
-  const [offices, setOffices] = useState<TourismOffice[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OFFICES);
-    const parsed: TourismOffice[] = saved ? JSON.parse(saved) : INITIAL_OFFICES;
-    const hqExists = parsed.some((o) => o.id === 'off-headquarters-ahp' || o.name.toLowerCase().includes('headquarters'));
-    if (!hqExists) {
-      const hq = INITIAL_OFFICES.find((o) => o.id === 'off-headquarters-ahp');
-      if (hq) {
-        return [hq, ...parsed];
-      }
-    }
-    return parsed;
-  });
-
-  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DELIVERIES);
-    const parsed: DeliveryRecord[] = saved ? JSON.parse(saved) : INITIAL_DELIVERIES;
-    const hasHqDeliveries = parsed.some((d) => d.officeId === 'off-headquarters-ahp');
-    if (!hasHqDeliveries) {
-      const hqDeliveries = INITIAL_DELIVERIES.filter((d) => d.officeId === 'off-headquarters-ahp');
-      return [...parsed, ...hqDeliveries];
-    }
-    return parsed;
-  });
-
-  const [batches, setBatches] = useState<StockInBatch[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BATCHES);
-    return saved ? JSON.parse(saved) : INITIAL_BATCHES;
-  });
-
-  const [fairs, setFairs] = useState<TourismFair[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.FAIRS);
-    return saved ? JSON.parse(saved) : INITIAL_FAIRS;
-  });
-
-  const [otherDeliveries, setOtherDeliveries] = useState<OtherDeliveryRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.OTHER_DELIVERIES);
-    return saved ? JSON.parse(saved) : INITIAL_OTHER_DELIVERIES;
-  });
-
-  // User customizations for depletion, burn rates, and time lapses
-  const [metricOverrides, setMetricOverrides] = useState<Record<string, OfficeFlyerMetricOverride>>(() => {
-    const saved = localStorage.getItem('flyerstock_metric_overrides_v1');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [flyers, setFlyers] = useState<FlyerType[]>(initialDb.flyers);
+  const [offices, setOffices] = useState<TourismOffice[]>(initialDb.offices);
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(initialDb.deliveries);
+  const [batches, setBatches] = useState<StockInBatch[]>(initialDb.batches);
+  const [fairs, setFairs] = useState<TourismFair[]>(initialDb.fairs);
+  const [otherDeliveries, setOtherDeliveries] = useState<OtherDeliveryRecord[]>(initialDb.otherDeliveries);
+  const [metricOverrides, setMetricOverrides] = useState<Record<string, OfficeFlyerMetricOverride>>(
+    initialDb.metricOverrides || {}
+  );
 
   const [isDatabaseReady, setIsDatabaseReady] = useState(false);
 
@@ -173,9 +166,75 @@ export default function App() {
     metricOverrides,
   ]);
 
+  // Hardened Multi-Layer Persistence:
+  // On startup, check IndexedDB. If local data was ever cleared by browser or incognito, recover it immediately!
   useEffect(() => {
-    localStorage.setItem('flyerstock_metric_overrides_v1', JSON.stringify(metricOverrides));
-  }, [metricOverrides]);
+    loadFromIndexedDb().then((idbState) => {
+      if (idbState) {
+        setDeliveries((curr) => (curr.length === 0 && idbState.deliveries?.length > 0 ? idbState.deliveries : curr));
+        setFairs((curr) => (curr.length === 0 && idbState.fairs?.length > 0 ? idbState.fairs : curr));
+        setOtherDeliveries((curr) => (curr.length === 0 && idbState.otherDeliveries?.length > 0 ? idbState.otherDeliveries : curr));
+        setBatches((curr) => (curr.length <= 1 && idbState.batches?.length > 1 ? idbState.batches : curr));
+        setFlyers((curr) => (curr.length <= 1 && idbState.flyers?.length > 1 ? idbState.flyers : curr));
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Multi-Workstation & Multi-IP Central Sync:
+  // Non-destructive fetch: server data is merged, and empty remote arrays NEVER overwrite user data entered on netlify.app
+  useEffect(() => {
+    fetch('/api/stock/data')
+      .then((r) => r.json())
+      .then((res) => {
+        if (res && res.success && res.data) {
+          const s = res.data;
+          if (Array.isArray(s.flyers) && s.flyers.length > 0) {
+            setFlyers((curr) => {
+              const existingIds = new Set(curr.map((f) => f.id));
+              const additions = s.flyers.filter((f: FlyerType) => !existingIds.has(f.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.offices) && s.offices.length > 0) {
+            setOffices((curr) => {
+              const existingIds = new Set(curr.map((o) => o.id));
+              const additions = s.offices.filter((o: TourismOffice) => !existingIds.has(o.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          // Only add remote deliveries if server actually has records - never wipe local deliveries!
+          if (Array.isArray(s.deliveries) && s.deliveries.length > 0) {
+            setDeliveries((curr) => {
+              const existingIds = new Set(curr.map((d) => d.id));
+              const additions = s.deliveries.filter((d: DeliveryRecord) => !existingIds.has(d.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.batches) && s.batches.length > 0) {
+            setBatches((curr) => {
+              const existingIds = new Set(curr.map((b) => b.id));
+              const additions = s.batches.filter((b: StockInBatch) => !existingIds.has(b.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.fairs) && s.fairs.length > 0) {
+            setFairs((curr) => {
+              const existingIds = new Set(curr.map((f) => f.id));
+              const additions = s.fairs.filter((f: TourismFair) => !existingIds.has(f.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+          if (Array.isArray(s.otherDeliveries) && s.otherDeliveries.length > 0) {
+            setOtherDeliveries((curr) => {
+              const existingIds = new Set(curr.map((o) => o.id));
+              const additions = s.otherDeliveries.filter((o: OtherDeliveryRecord) => !existingIds.has(o.id));
+              return additions.length > 0 ? [...curr, ...additions] : curr;
+            });
+          }
+        }
+      })
+      .catch((err) => console.warn('[Stock Sync] Central server fetch notice:', err));
+  }, []);
 
   const handleUpdateMetricOverride = (key: string, override: Partial<OfficeFlyerMetricOverride>) => {
     setMetricOverrides((prev) => ({
@@ -213,13 +272,23 @@ export default function App() {
     id?: string;
   } | null>(() => {
     if (typeof window !== 'undefined' && window.location) {
-      const params = new URLSearchParams(window.location.search);
-      const officeValidate = params.get('officeValidate');
-      const officeId = params.get('officeId');
-      if (officeValidate || officeId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      let code = searchParams.get('officeValidate') || searchParams.get('officeCode') || '';
+      let id = searchParams.get('officeId') || '';
+
+      if (!code && window.location.hash) {
+        const hashStr = window.location.hash.startsWith('#')
+          ? window.location.hash.slice(1)
+          : window.location.hash;
+        const hashParams = new URLSearchParams(hashStr);
+        code = hashParams.get('officeValidate') || hashParams.get('officeCode') || '';
+        id = id || hashParams.get('officeId') || '';
+      }
+
+      if (code || id) {
         return {
-          code: officeValidate || '',
-          id: officeId || undefined,
+          code: code || '',
+          id: id || undefined,
         };
       }
     }
@@ -264,39 +333,99 @@ export default function App() {
   // Tourism Offices & Contacts Directory Modal
   const [isOfficeContactsModalOpen, setIsOfficeContactsModalOpen] = useState(false);
 
-  // Digital Delivery QR Confirmation & Printable Archive Slip Modals
+  // Digital Delivery Signature & Printable Archive Slip Modals
   const [isArchiveSlipOpen, setIsArchiveSlipOpen] = useState(false);
   const [archiveSlipDelivery, setArchiveSlipDelivery] = useState<DeliveryRecord | null>(null);
   const [archiveSlipOffice, setArchiveSlipOffice] = useState<TourismOffice | null>(null);
   const [archiveSlipFlyer, setArchiveSlipFlyer] = useState<FlyerType | null>(null);
 
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [scannerOffice, setScannerOffice] = useState<TourismOffice | null>(null);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [signatureDelivery, setSignatureDelivery] = useState<DeliveryRecord | null>(null);
+  const [signatureOffice, setSignatureOffice] = useState<TourismOffice | null>(null);
+  const [signatureFlyer, setSignatureFlyer] = useState<FlyerType | null>(null);
 
-  // Sync with LocalStorage
+  // Multi-Layer Database Persistence (Permanent Keys + IndexedDB + Legacy Keys)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FLYERS, JSON.stringify(flyers));
-  }, [flyers]);
+    // 1. Write to hardened multi-layer database (IndexedDB + Permanent keys + Emergency Snapshot)
+    persistDatabaseState({
+      flyers,
+      offices,
+      deliveries,
+      batches,
+      fairs,
+      otherDeliveries,
+      metricOverrides,
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OFFICES, JSON.stringify(offices));
-  }, [offices]);
+    // 2. Also keep legacy keys updated for 100% backwards compatibility
+    try {
+      localStorage.setItem(STORAGE_KEYS.FLYERS, JSON.stringify(flyers));
+      localStorage.setItem(STORAGE_KEYS.OFFICES, JSON.stringify(offices));
+      localStorage.setItem(STORAGE_KEYS.DELIVERIES, JSON.stringify(deliveries));
+      localStorage.setItem(STORAGE_KEYS.BATCHES, JSON.stringify(batches));
+      localStorage.setItem(STORAGE_KEYS.FAIRS, JSON.stringify(fairs));
+      localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
+      localStorage.setItem('flyerstock_metric_overrides_v1', JSON.stringify(metricOverrides));
+    } catch (e) {}
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides]);
 
+  // Synchronize stock changes to central server so all PCs, tablets, and IPs stay unified
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.DELIVERIES, JSON.stringify(deliveries));
-  }, [deliveries]);
+    const timer = setTimeout(() => {
+      try {
+        fetch('/api/stock/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flyers,
+            offices,
+            deliveries,
+            batches,
+            fairs,
+            otherDeliveries,
+          }),
+        }).catch((err) => console.warn('[Stock Sync] Central broadcast notice:', err));
+      } catch (e) {
+        console.warn('[Stock Sync] Central broadcast error:', e);
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries]);
 
+  // Keep warehouse stock batches strictly connected to registered flyer materials
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BATCHES, JSON.stringify(batches));
-  }, [batches]);
+    if (flyers.length === 0) return;
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FAIRS, JSON.stringify(fairs));
-  }, [fairs]);
+    let batchesChanged = false;
+    let nextBatches = [...batches];
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OTHER_DELIVERIES, JSON.stringify(otherDeliveries));
-  }, [otherDeliveries]);
+    flyers.forEach((f) => {
+      const fBatches = nextBatches.filter((b) => b.flyerTypeId === f.id);
+      const totalBatchQty = fBatches.reduce((acc, b) => acc + b.quantity, 0);
+      const targetBaseStock =
+        f.sku === 'AHP-ROT-45' || f.name?.toLowerCase().includes('roteiro')
+          ? Math.max(f.warehouseStock || 0, 10000)
+          : f.warehouseStock || 0;
+
+      if (totalBatchQty === 0 && targetBaseStock > 0) {
+        const padNum = (nextBatches.length + 1).toString().padStart(3, '0');
+        nextBatches.push({
+          id: `bat-auto-${f.id}`,
+          batchRef: `PO-2026-PRINT-${padNum}`,
+          date: TODAY_STR,
+          flyerTypeId: f.id,
+          quantity: targetBaseStock,
+          printerName: 'Lote Central AHP - Gráfica Oficial',
+          unitCost: f.unitCost || 0.16,
+        });
+        batchesChanged = true;
+      }
+    });
+
+    if (batchesChanged) {
+      setBatches(nextBatches);
+    }
+  }, [flyers, batches]);
 
   // Keep server synchronized with the current deliveries list for cross-device visibility
   useEffect(() => {
@@ -406,6 +535,17 @@ export default function App() {
     }
   };
 
+  // Immediate auto-confirmation as soon as a mobile phone scan reading is detected
+  useEffect(() => {
+    if (mobileValidationOffice?.code || mobileValidationOffice?.id) {
+      handleRealTimeOfficeConfirmation(
+        mobileValidationOffice.code,
+        mobileValidationOffice.id,
+        'Mobile Phone Camera'
+      );
+    }
+  }, [mobileValidationOffice?.code, mobileValidationOffice?.id]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -424,11 +564,21 @@ export default function App() {
 
   // Handlers
   const handleOpenNewDelivery = (officeId?: string, flyerTypeId?: string, defaultQty?: number) => {
+    if (flyers.length === 0) {
+      showToast('Please add your first flyer publication to start recording deliveries.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     setDeliveryPreselect({ officeId, flyerTypeId, qty: defaultQty });
     setIsDeliveryModalOpen(true);
   };
 
   const handleOpenAddStock = (flyerTypeId?: string) => {
+    if (flyers.length === 0) {
+      showToast('Please add your first flyer publication to start receiving warehouse stock batches.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     setStockInPreselectFlyer(flyerTypeId);
     setIsStockInModalOpen(true);
   };
@@ -483,18 +633,94 @@ export default function App() {
     showToast(`Removed "${office?.name || officeId}" from directory.`);
   };
 
+  const DEFAULT_FALLBACK_FLYER: FlyerType = {
+    id: 'flyer-custom-fallback',
+    sku: 'AHP-MAT-01',
+    name: 'Material Promocional AHP',
+    category: 'Geral',
+    language: 'Português',
+    warehouseStock: 0,
+    minThreshold: 500,
+    unitCost: 0.15,
+    color: '#059669',
+    description: 'Publicação oficial Aldeias Históricas de Portugal',
+  };
+
   const handleOpenPrintSlip = (delivery: DeliveryRecord, office?: TourismOffice, flyer?: FlyerType) => {
     const targetOffice = office || offices.find((o) => o.id === delivery.officeId) || offices[0];
-    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0];
+    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0] || DEFAULT_FALLBACK_FLYER;
     setArchiveSlipDelivery(delivery);
     setArchiveSlipOffice(targetOffice);
     setArchiveSlipFlyer(targetFlyer);
     setIsArchiveSlipOpen(true);
   };
 
-  const handleOpenScanner = (office: TourismOffice) => {
-    setScannerOffice(office);
-    setIsScannerOpen(true);
+  const handleOpenSignatureModal = (
+    delivery: DeliveryRecord,
+    office: TourismOffice,
+    flyer?: FlyerType
+  ) => {
+    const targetFlyer = flyer || flyers.find((f) => f.id === delivery.flyerTypeId) || flyers[0] || DEFAULT_FALLBACK_FLYER;
+    setSignatureDelivery(delivery);
+    setSignatureOffice(office);
+    setSignatureFlyer(targetFlyer);
+    setIsSignatureModalOpen(true);
+  };
+
+  const handleSaveDigitalSignature = (
+    deliveryId: string,
+    confirmedBy: string,
+    signerRole: string,
+    signatureDataUrl: string,
+    signAllPending?: boolean
+  ) => {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    setDeliveries((prev) => {
+      const target = prev.find((d) => d.id === deliveryId);
+      const targetOfficeId = target?.officeId;
+
+      return prev.map((d) => {
+        const isTarget = d.id === deliveryId;
+        const isBatchSign =
+          signAllPending &&
+          targetOfficeId &&
+          d.officeId === targetOfficeId &&
+          d.confirmationStatus !== 'confirmed';
+
+        if (isTarget || isBatchSign) {
+          const sigCode = `SIG-AHP-${d.deliveryRef.replace(/[^A-Z0-9]/gi, '')}-${Math.floor(
+            1000 + Math.random() * 9000
+          )}`;
+          return {
+            ...d,
+            confirmationStatus: 'confirmed',
+            confirmedAt: nowStr,
+            confirmedBy: confirmedBy || 'Responsável Posto de Turismo',
+            signerRole: signerRole || 'Receção / Técnico de Turismo',
+            signatureDataUrl: signatureDataUrl,
+            confirmationSignatureCode: sigCode,
+          };
+        }
+        return d;
+      });
+    });
+
+    setArchiveSlipDelivery((prev) => {
+      if (prev && prev.id === deliveryId) {
+        return {
+          ...prev,
+          confirmationStatus: 'confirmed',
+          confirmedAt: nowStr,
+          confirmedBy,
+          signerRole,
+          signatureDataUrl,
+        };
+      }
+      return prev;
+    });
+
+    showToast(`Receção assinada e confirmada digitalmente por ${confirmedBy}!`);
   };
 
   const handleConfirmDelivery = (deliveryId: string, confirmedBy: string) => {
@@ -613,6 +839,22 @@ export default function App() {
   };
 
   const handleCreateDelivery = (newDelivery: Omit<DeliveryRecord, 'id' | 'deliveryRef'>) => {
+    // Strict warehouse stock dependency check
+    const availableStock = warehouseStockMap[newDelivery.flyerTypeId] ?? 0;
+    const flyer = flyers.find((f) => f.id === newDelivery.flyerTypeId);
+    if (availableStock <= 0) {
+      showToast(
+        `Cannot dispatch: Central warehouse stock is depleted (0 available for "${flyer?.name || 'this flyer'}"). Receive a print batch first.`
+      );
+      return;
+    }
+    if (newDelivery.quantityDelivered > availableStock) {
+      showToast(
+        `Cannot dispatch: Requested ${newDelivery.quantityDelivered.toLocaleString()} units exceeds central warehouse balance (${availableStock.toLocaleString()} available).`
+      );
+      return;
+    }
+
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const dateFormatted = newDelivery.date.replace(/-/g, '').slice(4);
     const deliveryRef = `DEL-2026-${dateFormatted}-${padNum}`;
@@ -626,9 +868,8 @@ export default function App() {
     setDeliveries((prev) => [createdRecord, ...prev]);
 
     const office = offices.find((o) => o.id === newDelivery.officeId);
-    const flyer = flyers.find((f) => f.id === newDelivery.flyerTypeId);
     showToast(
-      `Dispatched ${newDelivery.quantityDelivered.toLocaleString()} "${flyer?.name}" flyers to ${office?.name}!`
+      `Dispatched ${newDelivery.quantityDelivered.toLocaleString()} "${flyer?.name}" flyers from warehouse to ${office?.name}!`
     );
     return createdRecord;
   };
@@ -651,6 +892,33 @@ export default function App() {
     );
   };
 
+  const handleQuickReceiveStock = (flyerTypeId: string, quantity: number = 10000) => {
+    const flyer = flyers.find((f) => f.id === flyerTypeId);
+    const batchNum = (batches.length + 1).toString().padStart(3, '0');
+    const batchRef = `PO-2026-PRINT-${batchNum}`;
+
+    const newBatch: StockInBatch = {
+      id: `bat-quick-${Date.now()}`,
+      batchRef,
+      date: TODAY_STR,
+      flyerTypeId,
+      quantity,
+      printerName: 'Lote Central AHP - Gráfica Oficial',
+      unitCost: flyer?.unitCost || 0.16,
+    };
+
+    setBatches((prev) => [...prev, newBatch]);
+
+    // Also ensure the flyer object itself has its warehouseStock updated
+    setFlyers((prev) =>
+      prev.map((f) => (f.id === flyerTypeId ? { ...f, warehouseStock: (f.warehouseStock || 0) + quantity } : f))
+    );
+
+    showToast(
+      `Received ${quantity.toLocaleString()} units of "${flyer?.name || 'Flyer'}" into central warehouse stock!`
+    );
+  };
+
   const handleRecordDepletion = (deliveryId: string, depletedDate: string) => {
     setDeliveries((prev) =>
       prev.map((d) => (d.id === deliveryId ? { ...d, depletedDate } : d))
@@ -666,12 +934,24 @@ export default function App() {
   };
 
   const handleAddFair = (newFair: Omit<TourismFair, 'id'>) => {
+    // Strict warehouse stock dependency check for all fair items
+    for (const item of newFair.items) {
+      const available = warehouseStockMap[item.flyerTypeId] ?? 0;
+      if (item.quantitySpent > available) {
+        const fl = flyers.find((f) => f.id === item.flyerTypeId);
+        showToast(
+          `Cannot log tourism fair: Material "${fl?.name || item.flyerTypeId}" spent quantity (${item.quantitySpent.toLocaleString()}) exceeds warehouse balance (${available.toLocaleString()} available).`
+        );
+        return;
+      }
+    }
+
     const created: TourismFair = {
       ...newFair,
       id: `fair-${Date.now()}`,
     };
     setFairs((prev) => [created, ...prev]);
-    showToast(`Recorded fair "${created.name}" with ${created.totalFlyersSpent.toLocaleString()} flyers spent!`);
+    showToast(`Recorded fair "${created.name}" with ${created.totalFlyersSpent.toLocaleString()} flyers spent from warehouse!`);
   };
 
   const handleDeleteFair = (id: string) => {
@@ -680,6 +960,22 @@ export default function App() {
   };
 
   const handleAddOtherDelivery = (newRecord: Omit<OtherDeliveryRecord, 'id'>) => {
+    // Strict warehouse stock dependency check
+    const available = warehouseStockMap[newRecord.flyerTypeId] ?? 0;
+    const flyer = flyers.find((f) => f.id === newRecord.flyerTypeId);
+    if (available <= 0) {
+      showToast(
+        `Cannot dispatch: Central warehouse stock is depleted (0 available for "${flyer?.name || 'this flyer'}").`
+      );
+      return;
+    }
+    if (newRecord.quantity > available) {
+      showToast(
+        `Cannot dispatch: Requested ${newRecord.quantity.toLocaleString()} units exceeds warehouse balance (${available.toLocaleString()} available).`
+      );
+      return;
+    }
+
     const padNum = (otherDeliveries.length + 1).toString().padStart(3, '0');
     const created: OtherDeliveryRecord = {
       ...newRecord,
@@ -687,8 +983,7 @@ export default function App() {
       ref: `OD-2026-${padNum}`,
     };
     setOtherDeliveries((prev) => [created, ...prev]);
-    const flyer = flyers.find((f) => f.id === newRecord.flyerTypeId);
-    showToast(`Logged delivery "${newRecord.title}" (${newRecord.quantity.toLocaleString()} ${flyer?.name})!`);
+    showToast(`Logged delivery "${newRecord.title}" (${newRecord.quantity.toLocaleString()} ${flyer?.name} from warehouse)!`);
   };
 
   const handleDeleteOtherDelivery = (id: string) => {
@@ -722,6 +1017,11 @@ export default function App() {
   };
 
   const handleAddDeliveryDirectRow = () => {
+    if (flyers.length === 0) {
+      showToast('Please add at least one flyer publication before creating delivery rows.');
+      setIsAddFlyerModalOpen(true);
+      return;
+    }
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const newDelivery: DeliveryRecord = {
       id: `del-${Date.now()}`,
@@ -749,6 +1049,25 @@ export default function App() {
     showToast('Removed delivery record.');
   };
 
+  const handleAddDeliveryRecord = (delData: Partial<DeliveryRecord>) => {
+    const padNum = (deliveries.length + 1).toString().padStart(3, '0');
+    const date = delData.date || TODAY_STR;
+    const newDelivery: DeliveryRecord = {
+      id: `del-${Date.now()}`,
+      deliveryRef: delData.deliveryRef || `CIRCUIT-2026-${padNum}`,
+      date,
+      officeId: delData.officeId || offices[0]?.id || 'off-1',
+      flyerTypeId: delData.flyerTypeId || flyers[0]?.id || 'flyer-1',
+      quantityDelivered: delData.quantityDelivered || 500,
+      courier: delData.courier || 'Direct Courier / AHP',
+      notes: delData.notes || '',
+      newRequestDate: delData.newRequestDate,
+      depletedDate: delData.depletedDate,
+    };
+    setDeliveries((prev) => [newDelivery, ...prev]);
+    showToast(`Added delivery record for ${newDelivery.quantityDelivered} flyers.`);
+  };
+
   const handleUpdateFair = (fairId: string, patch: Partial<TourismFair>) => {
     setFairs((prev) =>
       prev.map((f) => (f.id === fairId ? { ...f, ...patch } : f))
@@ -774,15 +1093,59 @@ export default function App() {
     handleUpdateFlyerStock(flyerId, targetStock, {}, 'Direct Excel cell adjustment');
   };
 
+  const handleExportDatabaseBackup = () => {
+    exportDatabaseBackup({
+      flyers,
+      offices,
+      deliveries,
+      batches,
+      fairs,
+      otherDeliveries,
+      metricOverrides,
+    });
+    showToast('Database backup downloaded successfully (JSON).');
+  };
+
+  const handleImportDatabaseBackup = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (parsed) {
+          if (Array.isArray(parsed.flyers) && parsed.flyers.length > 0) setFlyers(parsed.flyers);
+          if (Array.isArray(parsed.offices) && parsed.offices.length > 0) setOffices(parsed.offices);
+          if (Array.isArray(parsed.deliveries)) setDeliveries(parsed.deliveries);
+          if (Array.isArray(parsed.batches) && parsed.batches.length > 0) setBatches(parsed.batches);
+          if (Array.isArray(parsed.fairs)) setFairs(parsed.fairs);
+          if (Array.isArray(parsed.otherDeliveries)) setOtherDeliveries(parsed.otherDeliveries);
+          if (parsed.metricOverrides) setMetricOverrides(parsed.metricOverrides);
+          showToast('Database successfully restored from backup file!');
+        }
+      } catch (err) {
+        showToast('Error restoring database: invalid backup file format.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleResetDemoData = () => {
-    if (window.confirm('Reset all flyers, deliveries, tourism fairs, and non-circuit records back to sample demo state?')) {
+    if (window.confirm('Reset application data? An emergency backup will be downloaded before resetting.')) {
+      exportDatabaseBackup({
+        flyers,
+        offices,
+        deliveries,
+        batches,
+        fairs,
+        otherDeliveries,
+        metricOverrides,
+      });
       setFlyers(INITIAL_FLYER_TYPES);
-      setOffices(INITIAL_OFFICES);
-      setDeliveries(INITIAL_DELIVERIES);
+      setDeliveries([]);
       setBatches(INITIAL_BATCHES);
-      setFairs(INITIAL_FAIRS);
-      setOtherDeliveries(INITIAL_OTHER_DELIVERIES);
-      showToast('Reset to default demonstration data.');
+      setFairs([]);
+      setOtherDeliveries([]);
+      showToast('Database reset. Your previous data was saved to a backup file.');
     }
   };
 
@@ -819,44 +1182,57 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    <div
+      id="main-app-shell"
+      className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white"
+    >
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div
+          id="main-app-toast"
+          className="fixed bottom-5 right-5 z-50 bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-3 duration-200 print:hidden"
+        >
           <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Main Top Navigation */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenNewDelivery={() => handleOpenNewDelivery()}
-        onOpenAddStock={() => handleOpenAddStock()}
-        onOpenDepletionModal={() => handleOpenDepletionModal()}
-        onOpenEmailModal={() => handleOpenEmailModal()}
-        onOpenUploadExcel={handleOpenUploadExcel}
-        onOpenAddFlyer={handleOpenAddFlyer}
-        onOpenOfficesDirectory={handleOpenOfficesDirectory}
-        onResetDemoData={handleResetDemoData}
-        currentUser={session.user}
-        onLogout={handleLogout}
-        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
-        onOpenUserManagement={handleOpenUserManagement}
-        flyers={flyers}
-        offices={offices}
-        deliveries={deliveries}
-        batches={batches}
-        fairs={fairs}
-        otherDeliveries={otherDeliveries}
-        depletedCount={depletedCount}
-        criticalCount={criticalCount}
-        metricOverrides={metricOverrides}
-      />
+      <div id="main-app-navbar" className="print:hidden">
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenNewDelivery={() => handleOpenNewDelivery()}
+          onOpenAddStock={() => handleOpenAddStock()}
+          onOpenDepletionModal={() => handleOpenDepletionModal()}
+          onOpenEmailModal={() => handleOpenEmailModal()}
+          onOpenUploadExcel={handleOpenUploadExcel}
+          onOpenAddFlyer={handleOpenAddFlyer}
+          onOpenOfficesDirectory={handleOpenOfficesDirectory}
+          onResetDemoData={handleResetDemoData}
+          onExportDatabaseBackup={handleExportDatabaseBackup}
+          onImportDatabaseBackup={handleImportDatabaseBackup}
+          currentUser={session.user}
+          onLogout={handleLogout}
+          onOpenChangePassword={() => handleOpenUserManagement('change_password')}
+          onOpenUserManagement={handleOpenUserManagement}
+          flyers={flyers}
+          offices={offices}
+          deliveries={deliveries}
+          batches={batches}
+          fairs={fairs}
+          otherDeliveries={otherDeliveries}
+          depletedCount={depletedCount}
+          criticalCount={criticalCount}
+          metricOverrides={metricOverrides}
+        />
+      </div>
 
       {/* Main View Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-1 w-full pb-10">
+      <main
+        id="main-app-content"
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 flex-1 w-full pb-10 print:hidden"
+      >
         {activeTab === 'dashboard' && (
           <DashboardView
             flyers={flyers}
@@ -923,6 +1299,9 @@ export default function App() {
             onMarkDepleted={handleOpenDepletionModal}
             onRecordNewRequest={handleRecordNewRequest}
             onOpenEmailModal={handleOpenEmailModal}
+            onUpdateDelivery={handleUpdateDelivery}
+            onDeleteDelivery={handleDeleteDelivery}
+            onAddDelivery={handleAddDeliveryRecord}
           />
         )}
 
@@ -951,12 +1330,13 @@ export default function App() {
             offices={offices}
             flyers={flyers}
             deliveries={deliveries}
+            warehouseStockMap={warehouseStockMap}
             onAddDelivery={handleCreateDelivery}
             onUpdateDelivery={handleUpdateDelivery}
             onDeleteDelivery={handleDeleteDelivery}
             onConfirmDelivery={handleConfirmDelivery}
             onOpenPrintSlip={handleOpenPrintSlip}
-            onOpenScanner={handleOpenScanner}
+            onOpenSignatureModal={handleOpenSignatureModal}
             onOpenEditOffice={(office) => {
               setIsOfficeContactsModalOpen(true);
             }}
@@ -964,19 +1344,22 @@ export default function App() {
             onAddOffice={handleAddOffice}
             onDeleteOffice={handleDeleteOffice}
             onComposeEmail={handleOpenEmailModal}
+            onOpenAddStock={handleOpenAddStock}
           />
         )}
       </main>
 
       {/* Black Base Institutional Footer with Official Castle Logo & Metrics */}
-      <Footer
-        currentUser={session.user}
-        onLogout={handleLogout}
-        onOpenChangePassword={() => handleOpenUserManagement('change_password')}
-        flyers={flyers}
-        offices={offices}
-        deliveries={deliveries}
-      />
+      <div id="main-app-footer" className="print:hidden">
+        <Footer
+          currentUser={session.user}
+          onLogout={handleLogout}
+          onOpenChangePassword={() => handleOpenUserManagement('change_password')}
+          flyers={flyers}
+          offices={offices}
+          deliveries={deliveries}
+        />
+      </div>
 
       {/* Modals */}
       <DeliveryModal
@@ -989,6 +1372,7 @@ export default function App() {
         preselectedFlyerTypeId={deliveryPreselect.flyerTypeId}
         defaultQty={deliveryPreselect.qty}
         warehouseStockMap={warehouseStockMap}
+        onQuickReceiveStock={handleQuickReceiveStock}
       />
 
       <StockInModal
@@ -1078,6 +1462,7 @@ export default function App() {
           offices={offices}
           flyers={flyers}
           onConfirmDelivery={handleConfirmDelivery}
+          onOpenSignatureModal={handleOpenSignatureModal}
           onUpdateDelivery={(deliveryId, patch) => {
             handleUpdateDelivery(deliveryId, patch);
             setArchiveSlipDelivery((prev) => (prev && prev.id === deliveryId ? { ...prev, ...patch } : prev));
@@ -1093,29 +1478,25 @@ export default function App() {
         />
       )}
 
-      {/* Tourism Office QR Code Scanner & Reader Modal */}
-      {scannerOffice && (
-        <OfficeQRCodeScannerModal
-          isOpen={isScannerOpen}
+      {/* Digital Signature Modal (Signable on Tablets, iPads, Touchscreens & PCs) */}
+      {signatureDelivery && signatureOffice && signatureFlyer && (
+        <DigitalSignatureModal
+          isOpen={isSignatureModalOpen}
           onClose={() => {
-            setIsScannerOpen(false);
-            setScannerOffice(null);
+            setIsSignatureModalOpen(false);
+            setSignatureDelivery(null);
+            setSignatureOffice(null);
+            setSignatureFlyer(null);
           }}
-          office={scannerOffice}
-          pendingDeliveries={deliveries.filter(
-            (d) => d.officeId === scannerOffice.id && d.confirmationStatus !== 'confirmed'
+          delivery={signatureDelivery}
+          office={signatureOffice}
+          flyer={signatureFlyer}
+          pendingOfficeDeliveries={deliveries.filter(
+            (d) => d.officeId === signatureOffice.id && d.confirmationStatus !== 'confirmed'
           )}
-          allDeliveries={deliveries.filter((d) => d.officeId === scannerOffice.id)}
-          flyers={flyers}
-          onConfirmDelivery={handleConfirmDelivery}
-          onOpenPrintSlip={(del) => {
-            const fl = flyers.find((f) => f.id === del.flyerTypeId) || flyers[0];
-            handleOpenPrintSlip(del, scannerOffice, fl);
-          }}
-          onOpenMobileView={(code, id) => {
-            setIsScannerOpen(false);
-            setScannerOffice(null);
-            setMobileValidationOffice({ code, id });
+          onSaveSignature={handleSaveDigitalSignature}
+          onOpenPrintSlip={(del, off, fl) => {
+            handleOpenPrintSlip(del, off, fl);
           }}
         />
       )}
@@ -1128,6 +1509,9 @@ export default function App() {
           onClose={() => setIsUserManagementModalOpen(false)}
           onSuccessToast={(msg) => {
             showToast(msg);
+          }}
+          onUserUpdated={(updatedUser) => {
+            setSession((prev) => (prev ? { ...prev, user: updatedUser } : null));
           }}
           initialTab={userModalTab}
         />

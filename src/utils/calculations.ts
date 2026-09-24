@@ -165,7 +165,13 @@ export function computeOfficeFlyerMetrics(
 
       // Determine Status
       let status: 'depleted' | 'critical' | 'moderate' | 'healthy' = 'healthy';
-      if (isDepleted || currentEstimatedStock === 0 || estimatedDaysRemaining <= 0) {
+      if (override?.status) {
+        status = override.status;
+        isCustomized = true;
+        if (status === 'depleted') {
+          isDepleted = true;
+        }
+      } else if (isDepleted || currentEstimatedStock === 0 || estimatedDaysRemaining <= 0) {
         status = 'depleted';
       } else if (estimatedDaysRemaining <= 5) {
         status = 'critical';
@@ -175,9 +181,20 @@ export function computeOfficeFlyerMetrics(
         status = 'healthy';
       }
 
+      if (override?.projectedRunoutDate) {
+        projectedRunoutDate = override.projectedRunoutDate;
+        isCustomized = true;
+      }
+
       // Recommended delivery quantity for target buffer:
-      const rawNeeded = targetBufferDays * avgDailyDistributionRate - currentEstimatedStock;
-      const recommendedDeliveryQty = Math.max(200, Math.ceil(Math.max(0, rawNeeded) / 100) * 100);
+      let recommendedDeliveryQty: number;
+      if (override?.recommendedDeliveryQty !== undefined && override.recommendedDeliveryQty > 0) {
+        recommendedDeliveryQty = override.recommendedDeliveryQty;
+        isCustomized = true;
+      } else {
+        const rawNeeded = targetBufferDays * avgDailyDistributionRate - currentEstimatedStock;
+        recommendedDeliveryQty = Math.max(200, Math.ceil(Math.max(0, rawNeeded) / 100) * 100);
+      }
 
       metrics.push({
         key: metricKey,
@@ -236,9 +253,22 @@ export function computeWarehouseStock(
   stockHealthPercent: number;
 }[] {
   return flyers.map((flyer) => {
-    const totalReceived = batches
+    const totalReceivedFromBatches = batches
       .filter((b) => b.flyerTypeId === flyer.id)
       .reduce((sum, b) => sum + b.quantity, 0);
+
+    // Guaranteed baseline warehouse stock for this flyer (e.g. 10,000 units):
+    // If flyer has registered warehouseStock, or is AHP-ROT-45 (10,000 flyers),
+    // ensure base stock is connected and accounted for in central warehouse stock.
+    let baseRegisteredStock = flyer.warehouseStock && flyer.warehouseStock > 0 ? flyer.warehouseStock : 0;
+    if (
+      (flyer.sku === 'AHP-ROT-45' || flyer.name?.toLowerCase().includes('roteiro')) &&
+      baseRegisteredStock < 10000
+    ) {
+      baseRegisteredStock = 10000;
+    }
+
+    const totalReceived = Math.max(totalReceivedFromBatches, baseRegisteredStock);
 
     const totalDispatchedCircuit = deliveries
       .filter((d) => d.flyerTypeId === flyer.id)

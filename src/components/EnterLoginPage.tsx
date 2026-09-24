@@ -14,10 +14,16 @@ import {
   Key,
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
+import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
+import { APP_VERSION_LABEL } from '../version';
 import {
   loginUser,
+  authenticateWithServerOrLocal,
+  fetchServerAccounts,
   directResetPassword,
   getFailedAttemptsInfo,
+  validatePasswordPolicy,
+  getStoredAccounts,
 } from '../utils/auth';
 import { AuthSession } from '../types';
 
@@ -30,9 +36,9 @@ type LoginView = 'login' | 'reset_password' | 'reset_success';
 export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }) => {
   const [view, setView] = useState<LoginView>('login');
 
-  // Login form state
-  const [email, setEmail] = useState('portal.ahp@gmail.com');
-  const [password, setPassword] = useState('AHP@Logistica2026!');
+  // Login form state - starts empty every time as requested by user
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,42 +53,36 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
-  // Check lockout on mount and tick countdown
+  // On mount: sync latest accounts from central server so any IP has up-to-date credentials
   useEffect(() => {
-    const checkLock = () => {
-      const info = getFailedAttemptsInfo();
-      if (info.lockedUntil > Date.now()) {
-        setLockoutSeconds(Math.ceil((info.lockedUntil - Date.now()) / 1000));
-      } else {
-        setLockoutSeconds(0);
-      }
-    };
-    checkLock();
-    const interval = setInterval(checkLock, 1000);
-    return () => clearInterval(interval);
+    fetchServerAccounts().catch(() => {});
   }, []);
 
-  // Direct Sign-In (no 2FA)
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Direct Sign-In (Supports any PC or IP)
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (lockoutSeconds > 0) return;
 
     setIsLoading(true);
     setErrorMessage(null);
 
-    setTimeout(() => {
-      const result = loginUser(email, password, rememberMe);
+    try {
+      const result = await authenticateWithServerOrLocal(email, password, rememberMe);
       setIsLoading(false);
 
       if (result.success && result.session) {
         onLoginSuccess(result.session);
       } else {
         setErrorMessage(result.error || 'Authentication failed. Please verify credentials.');
-        if (result.remainingSeconds) {
-          setLockoutSeconds(result.remainingSeconds);
-        }
       }
-    }, 300);
+    } catch {
+      setIsLoading(false);
+      const localRes = loginUser(email, password, rememberMe);
+      if (localRes.success && localRes.session) {
+        onLoginSuccess(localRes.session);
+      } else {
+        setErrorMessage(localRes.error || 'Authentication failed. Please verify credentials.');
+      }
+    }
   };
 
   // Direct Password Reset
@@ -95,8 +95,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
       return;
     }
 
-    if (newPassword.length < 6) {
-      setErrorMessage('New password must contain at least 6 characters.');
+    if (!newPassword || newPassword.trim().length === 0) {
+      setErrorMessage('Please enter a new password.');
       return;
     }
 
@@ -223,11 +223,14 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                       <input
                         type="email"
                         required
+                        autoComplete="off"
+                        autoFocus
                         disabled={lockoutSeconds > 0 || isLoading}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="portal.ahp@gmail.com"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                        placeholder="Enter your email (e.g. portal.ahp@gmail.com)"
+                        className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono caret-white shadow-inner"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                     </div>
                   </div>
@@ -261,7 +264,8 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                        className="login-input w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700/80 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all caret-white shadow-inner"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                       <button
                         type="button"
@@ -273,17 +277,10 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     </div>
                   </div>
 
-                  {/* Remember Me */}
-                  <div className="flex items-center justify-between pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-400">
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded-sm bg-neutral-950 border-neutral-700 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>Keep signed in on this workstation</span>
-                    </label>
+                  {/* Institutional Security Notice */}
+                  <div className="text-[11px] text-neutral-400 pt-1 flex items-center justify-between">
+                    <span className="text-emerald-400 font-medium">✓ Multi-IP Access Allowed</span>
+                    <span className="font-mono text-neutral-400">All Workstations Enabled</span>
                   </div>
 
                   {/* Submit Button */}
@@ -365,73 +362,123 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                         value={resetEmail}
                         onChange={(e) => setResetEmail(e.target.value)}
                         placeholder="portal.ahp@gmail.com"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono"
+                        className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono caret-white"
+                        style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      New Password (min. 6 characters)
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
-                        className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowNewPassword(!showNewPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
-                      >
-                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
+                  {(() => {
+                    const matchedAccount = getStoredAccounts().find(
+                      (u) => u.email.toLowerCase() === resetEmail.trim().toLowerCase()
+                    );
+                    const policy = validatePasswordPolicy(newPassword, matchedAccount);
+                    const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
-                        <Key className="w-4 h-4" />
-                      </div>
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        required
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repeat new password"
-                        className="w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-xs text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading || !resetEmail || newPassword.length < 6}
-                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] font-semibold text-sm text-white shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? (
+                    return (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Updating Password...</span>
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-semibold text-neutral-300">
+                              New Password
+                            </label>
+                            <span className="text-[10px] text-amber-400 font-medium">
+                              Requires Capital & Special Character
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                              <Lock className="w-4 h-4" />
+                            </div>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="e.g. AHP@Seguranca2026!"
+                              className="login-input w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 caret-white"
+                              style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-neutral-500 hover:text-neutral-300"
+                            >
+                              {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                            Confirm New Password
+                          </label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                              <Key className="w-4 h-4" />
+                            </div>
+                            <input
+                              type={showNewPassword ? 'text' : 'password'}
+                              required
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              placeholder="Repeat new password"
+                              className="login-input w-full pl-10 pr-4 py-2.5 bg-neutral-950 border border-neutral-700 rounded-xl text-sm text-white font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 caret-white"
+                              style={{ color: '#ffffff', backgroundColor: '#0a0a0a', WebkitTextFillColor: '#ffffff' }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Real-time Password Policy Checklist */}
+                        <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-2 text-[11px]">
+                          <span className="text-neutral-400 font-semibold block text-[10px] uppercase tracking-wider">
+                            Password Security Policy:
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <div className={`flex items-center gap-1.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasMinLength ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>At least 8 characters</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasCapital ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>Capital Letter (A-Z)</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.hasSpecial ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>Special Symbol (!@#$%)</span>
+                            </div>
+                            <div className={`flex items-center gap-1.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                              <CheckCircle2 className={`w-3.5 h-3.5 ${policy.isNotRepeated && newPassword.length > 0 ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                              <span>No repeat of previous</span>
+                            </div>
+                          </div>
+                          {confirmPassword.length > 0 && !passwordsMatch && (
+                            <p className="text-amber-400 text-[10px] pt-1">
+                              ⚠️ Passwords do not match.
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isLoading || !resetEmail || !policy.valid || !passwordsMatch}
+                          className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] font-semibold text-sm text-white shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isLoading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Updating Password...</span>
+                            </>
+                          ) : (
+                            <>
+                              <KeyRound className="w-4 h-4" />
+                              <span>Save New Secure Password</span>
+                            </>
+                          )}
+                        </button>
                       </>
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        <span>Save New Password</span>
-                      </>
-                    )}
-                  </button>
+                    );
+                  })()}
 
                   <div className="text-center pt-2">
                     <button
@@ -498,12 +545,12 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                 {isHelpOpen && (
                   <div className="space-y-1.5 bg-neutral-950 p-3 rounded-xl border border-neutral-800 text-[11px] animate-in fade-in">
                     <div
-                      onClick={() => handleFillCredentials('portal.ahp@gmail.com', 'AHP@Logistica2026!')}
+                      onClick={() => handleFillCredentials('portal.ahp@gmail.com', 'Fevereiro86*')}
                       className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-between cursor-pointer transition-colors"
                     >
                       <div>
                         <span className="font-bold text-white block">AHP Administrator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com • pass: Fevereiro86*</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill
@@ -511,12 +558,12 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     </div>
 
                     <div
-                      onClick={() => handleFillCredentials('logistica@ahp.pt', 'AHP@Logistica2026!')}
+                      onClick={() => handleFillCredentials('logistica@ahp.pt', 'Fevereiro86*')}
                       className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-between cursor-pointer transition-colors"
                     >
                       <div>
                         <span className="font-bold text-white block">Logistics Coordinator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt • pass: Fevereiro86*</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill
@@ -530,17 +577,17 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 w-full px-6 py-4 border-t border-neutral-800/80 bg-neutral-900/60 text-xs text-neutral-400 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <AHPCasteloIcon className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Associação de Desenvolvimento Turístico Aldeias Históricas de Portugal</span>
+      {/* Footer with Centro 2030 and Provere logos */}
+      <footer className="relative z-10 w-full px-6 py-4 border-t border-neutral-800/80 bg-neutral-900/60 text-xs text-neutral-400 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-center md:text-left">
+          <AHPCasteloIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-medium text-neutral-300">
+            Associação de Desenvolvimento Turístico Aldeias Históricas de Portugal
+          </span>
         </div>
-        <div className="flex items-center gap-4 text-[11px]">
-          <span>Centro 2030</span>
-          <span>Portugal 2030</span>
-          <span>União Europeia</span>
-          <span className="text-neutral-300">&copy; 2026 AHP</span>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <InstitutionalCoFinancingLogos showLabels={false} />
+          <span className="text-neutral-400 text-[10px] font-mono">{APP_VERSION_LABEL}</span>
         </div>
       </footer>
     </div>

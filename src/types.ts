@@ -16,7 +16,7 @@ export interface TourismOffice {
   code: string;
   name: string;
   zone: string;
-  footfallTier: 'High' | 'Medium' | 'Seasonal Peak';
+  footfallTier: 'High' | 'Medium' | 'Low' | 'Seasonal Peak';
   contactPerson: string;
   email: string;
   phone: string;
@@ -46,10 +46,12 @@ export interface DeliveryRecord {
   customTimeLapseDays?: number; // Custom usage time lapse in days
   customDailyBurnRate?: number; // Custom daily burn rate in units/day
 
-  // Digital QR Code Confirmation & Verification Archive (replacing traditional handwritten signatures)
+  // Digital Signature & Verification Archive (tablet touch / stylus / mouse / PC)
   confirmationStatus?: 'pending' | 'confirmed';
   confirmedAt?: string; // e.g. "2026-09-10 10:14:32"
   confirmedBy?: string; // Name & title of the tourism office staff who confirmed the receipt
+  signerRole?: string; // e.g. "Receção / Responsável Posto"
+  signatureDataUrl?: string; // Digital handwritten signature captured via canvas (tablet touch / stylus / mouse / PC)
   qrToken?: string; // Cryptographic verification token
   confirmationSignatureCode?: string; // e.g. "VERIFIED-AHP-SORTELHA-89214"
   archiveNotes?: string;
@@ -59,7 +61,13 @@ export interface OfficeFlyerMetricOverride {
   avgUsagePeriodDays?: number; // Customized time lapse in days
   avgDailyDistributionRate?: number; // Customized daily distribution velocity
   currentEstimatedStock?: number; // Customized estimated stock remaining
+  projectedRunoutDate?: string; // Customized next replenishment / request date
+  status?: 'depleted' | 'critical' | 'moderate' | 'healthy'; // Customized status
+  recommendedDeliveryQty?: number; // Customized restock recommendation
   notes?: string;
+  customAvgUsagePeriodDays?: number;
+  customBurnRate?: number;
+  customEstimatedStock?: number;
 }
 
 export interface StockInBatch {
@@ -94,14 +102,15 @@ export interface TourismFair {
   notes?: string;
 }
 
-// Non-Circuit Deliveries: Guided tours, historical village walk-ins, festivals/events
+// Non-Circuit Deliveries: Guided tours, historical village walk-ins, festivals/events, custom categories
 export type OtherDeliveryCategory =
   | 'guided_tour'
   | 'historical_village_office'
   | 'event'
   | 'school_educational'
   | 'protocol_vip'
-  | 'other';
+  | 'other'
+  | (string & {});
 
 export interface OtherDeliveryRecord {
   id: string;
@@ -150,12 +159,6 @@ export interface OfficeFlyerMetric {
   hasCustomStock?: boolean;
 }
 
-export interface OfficeFlyerMetricOverride {
-  customAvgUsagePeriodDays?: number;
-  customBurnRate?: number;
-  customEstimatedStock?: number;
-}
-
 export type ActiveTab =
   | 'dashboard'
   | 'spreadsheet'
@@ -168,7 +171,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'logistics_coordinator' | 'manager';
+  role: 'admin' | 'logistics_coordinator' | 'manager' | string;
   lastLogin?: string;
   avatar?: string;
 }

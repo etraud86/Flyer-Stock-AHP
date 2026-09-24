@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { DeliveryRecord, FlyerType, TourismOffice } from '../types';
 import { AHPLogo, AHPCasteloIcon } from './AHPLogo';
+import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
 
 interface MobileOfficeValidationViewProps {
   officeCode: string;
@@ -90,22 +91,23 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
 
     // Find deliveries for this office
     const officeDeliveries = deliveries.filter((d) => d.officeId === targetOffice.id);
-    let targetDel = officeDeliveries.find((d) => d.confirmationStatus !== 'confirmed');
+    const pendingDeliveries = officeDeliveries.filter((d) => d.confirmationStatus !== 'confirmed');
 
-    if (!targetDel && officeDeliveries.length > 0) {
-      targetDel = officeDeliveries[0];
-    }
-
-    if (targetDel) {
-      onConfirmDelivery(targetDel.id, defaultStaff);
+    if (pendingDeliveries.length > 0) {
+      // Auto-confirm all pending deliveries for this tourism office
+      pendingDeliveries.forEach((del) => {
+        onConfirmDelivery(del.id, defaultStaff);
+      });
       setActiveDeliveryRecord({
-        ...targetDel,
+        ...pendingDeliveries[0],
         confirmationStatus: 'confirmed',
         confirmedBy: defaultStaff,
         confirmedAt: confirmedTimestamp,
       });
+    } else if (officeDeliveries.length > 0) {
+      setActiveDeliveryRecord(officeDeliveries[0]);
     } else {
-      // Create a simulated delivery voucher if none existed on this device
+      // Create an automatic delivery voucher for this office
       const fallbackFlyer = flyers[0];
       const newDel: DeliveryRecord = {
         id: `del-${Date.now()}`,
@@ -124,6 +126,8 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
       onConfirmDelivery(newDel.id, defaultStaff);
     }
 
+    const confirmedDelId = pendingDeliveries[0]?.id || officeDeliveries[0]?.id;
+
     // 1. Sync immediately with the central server API so the desktop platform updates across devices
     fetch('/api/qr/confirm-office', {
       method: 'POST',
@@ -132,7 +136,7 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
         officeCode: targetOffice.code,
         officeId: targetOffice.id,
         confirmedBy: defaultStaff,
-        deliveryId: targetDel?.id,
+        deliveryId: confirmedDelId,
       }),
     }).catch((err) => {
       console.warn('Could not reach central sync API, relying on local sync:', err);
@@ -149,7 +153,7 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
           officeName: targetOffice.name,
           confirmedBy: defaultStaff,
           confirmedAt: confirmedTimestamp,
-          deliveryId: targetDel?.id,
+          deliveryId: confirmedDelId,
         });
         bc.close();
       }
@@ -339,9 +343,10 @@ export const MobileOfficeValidationView: React.FC<MobileOfficeValidationViewProp
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full max-w-md mx-auto text-center text-[10px] text-neutral-500 py-3 border-t border-neutral-900">
-        &copy; 2026 Aldeias Históricas de Portugal &bull; Permanent Office QR Architecture
+      {/* Footer with Centro 2030 and Provere logos */}
+      <footer className="w-full max-w-md mx-auto text-center text-[10px] text-neutral-500 py-4 border-t border-neutral-900 flex flex-col items-center gap-3">
+        <InstitutionalCoFinancingLogos showLabels={false} />
+        <span>&copy; 2026 Aldeias Históricas de Portugal &bull; Permanent Office QR Architecture</span>
       </footer>
     </div>
   );

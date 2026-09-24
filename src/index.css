@@ -1,1 +1,150 @@
 @import "tailwindcss";
+
+/* Ensure all form controls, selects, options and inputs in light views are razor-sharp black and fully visible */
+input:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+select:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+textarea:not(.text-white):not(.login-input):not([data-theme="dark"]), 
+option:not(.text-white):not(.login-input):not([data-theme="dark"]) {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+
+/* Ensure dark-themed and login inputs have razor-sharp, visible white text */
+input.text-white,
+input.login-input,
+.login-input,
+[data-theme="dark"] input,
+.dark-theme-input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #0a0a0a !important;
+  opacity: 1 !important;
+}
+
+input.text-white::placeholder,
+input.login-input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Fix browser autofill styling on dark inputs so text stays bright white */
+input.login-input:-webkit-autofill,
+input.login-input:-webkit-autofill:hover, 
+input.login-input:-webkit-autofill:focus,
+input.text-white:-webkit-autofill,
+input.text-white:-webkit-autofill:hover,
+input.text-white:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0px 1000px #0a0a0a inset !important;
+  box-shadow: 0 0 0px 1000px #0a0a0a inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+select option {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  /* Reset document flow completely */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Completely eliminate main navigation, content views, footer, toasts, and any other modals */
+  #main-app-shell {
+    background: #ffffff !important;
+    min-height: 0 !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #main-app-navbar,
+  #main-app-content,
+  #main-app-footer,
+  #main-app-toast,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* When printing delivery slip is active, hide everything outside the printable modal */
+  body.printing-delivery-slip-active #main-app-navbar,
+  body.printing-delivery-slip-active #main-app-content,
+  body.printing-delivery-slip-active #main-app-footer,
+  body.printing-delivery-slip-active #main-app-toast {
+    display: none !important;
+  }
+
+  /* Isolate only the delivery confirmation document container */
+  #printable-delivery-modal-backdrop {
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  #printable-delivery-modal-card {
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  #printable-delivery-slip {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 4mm 6mm !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Prevent page breaks inside document components */
+  #printable-delivery-slip > div,
+  #printable-delivery-slip table,
+  #printable-delivery-slip tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

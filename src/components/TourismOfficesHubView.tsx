@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Building2,
-  QrCode,
   Printer,
   Truck,
   CheckCircle2,
@@ -21,6 +20,9 @@ import {
   AlertCircle,
   Check,
   Sparkles,
+  PenTool,
+  Eye,
+  FileCheck,
 } from 'lucide-react';
 import { TourismOffice, FlyerType, DeliveryRecord } from '../types';
 import { TODAY_STR } from '../utils/calculations';
@@ -30,34 +32,40 @@ interface TourismOfficesHubViewProps {
   offices: TourismOffice[];
   flyers: FlyerType[];
   deliveries: DeliveryRecord[];
+  warehouseStockMap?: Record<string, number>;
   onAddDelivery: (newDelivery: Omit<DeliveryRecord, 'id' | 'deliveryRef'>) => DeliveryRecord | void;
   onUpdateDelivery?: (id: string, patch: Partial<DeliveryRecord>) => void;
   onDeleteDelivery?: (id: string) => void;
   onConfirmDelivery: (deliveryId: string, confirmedBy: string) => void;
   onOpenPrintSlip: (delivery: DeliveryRecord, office: TourismOffice, flyer: FlyerType) => void;
-  onOpenScanner: (office: TourismOffice) => void;
+  onOpenScanner?: (office: TourismOffice) => void;
+  onOpenSignatureModal?: (delivery: DeliveryRecord, office: TourismOffice, flyer: FlyerType) => void;
   onOpenEditOffice?: (office: TourismOffice) => void;
   onUpdateOffice?: (officeId: string, updatedData: Partial<TourismOffice>) => void;
   onAddOffice?: (newOffice: Omit<TourismOffice, 'id'>) => void;
   onDeleteOffice?: (officeId: string) => void;
   onComposeEmail?: (officeId: string) => void;
+  onOpenAddStock?: (flyerTypeId?: string) => void;
 }
 
 export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
   offices,
   flyers,
   deliveries,
+  warehouseStockMap = {},
   onAddDelivery,
   onUpdateDelivery,
   onDeleteDelivery,
   onConfirmDelivery,
   onOpenPrintSlip,
   onOpenScanner,
+  onOpenSignatureModal,
   onOpenEditOffice,
   onUpdateOffice,
   onAddOffice,
   onDeleteOffice,
   onComposeEmail,
+  onOpenAddStock,
 }) => {
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(offices[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -120,12 +128,21 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
 
   const totalFlyersReceivedByOffice = officeDeliveries.reduce((sum, d) => sum + d.quantityDelivered, 0);
 
-  // Quick Dispatch submit
+  // Quick Dispatch submit with strict warehouse stock dependency
+  const dispatchAvailableStock = warehouseStockMap[dispatchFlyerId] ?? 0;
+  const isDispatchStockDepleted = dispatchAvailableStock <= 0;
+  const isDispatchStockInsufficient = dispatchQty > dispatchAvailableStock;
+  const isDispatchDisabled = isDispatchStockDepleted || isDispatchStockInsufficient || dispatchQty <= 0;
+
   const handleCreateOfficeDelivery = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeOffice || !dispatchFlyerId) return;
 
-    const clampedQty = Math.max(1, Math.min(1000000, Number(dispatchQty) || 1));
+    const clampedQty = Math.max(1, Number(dispatchQty) || 1);
+    if (clampedQty > dispatchAvailableStock || isDispatchStockDepleted) {
+      return;
+    }
+
     const qrToken = generateDeliveryQRToken(`DEL-${Date.now().toString().slice(-4)}`, activeOffice.code);
 
     const createdRecord = onAddDelivery({
@@ -145,6 +162,19 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
     if (createdRecord) {
       const fl = flyers.find((f) => f.id === dispatchFlyerId) || flyers[0];
       onOpenPrintSlip(createdRecord, activeOffice, fl);
+    }
+  };
+
+  const handleOpenSignatureForActiveOffice = () => {
+    const pendingDel = officeDeliveries.find((d) => d.confirmationStatus !== 'confirmed');
+    const targetDel = pendingDel || officeDeliveries[0];
+    if (targetDel) {
+      const fl = flyers.find((f) => f.id === targetDel.flyerTypeId) || flyers[0];
+      if (onOpenSignatureModal) {
+        onOpenSignatureModal(targetDel, activeOffice, fl);
+      }
+    } else {
+      setIsDispatchFormOpen(true);
     }
   };
 
@@ -287,26 +317,26 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
               <Building2 className="w-4 h-4" />
             </div>
             <h1 className="text-lg font-bold text-slate-900">
-              Tourism Offices &amp; QR Delivery Verification Hub
+              Tourism Offices &amp; Digital Signatures Hub
             </h1>
             <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-              Paperless Digital Signatures
+              Tablet &bull; PC &bull; Touch Signatures
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1 max-w-3xl">
-            Each tourism office has a dedicated area where flyer dispatches generate an automatic
-            QR code. All offices and delivery records are fully editable with instant synchronization.
+            Each tourism office has a dedicated area where flyer dispatches can be signed directly on tablet or PC.
+            Receipts and delivery records are fully editable with instant digital synchronization.
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => onOpenScanner(activeOffice)}
+            onClick={handleOpenSignatureForActiveOffice}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
-            <QrCode className="w-4 h-4" />
-            <span>Read Office QR Code</span>
+            <PenTool className="w-4 h-4" />
+            <span>Sign on Tablet / PC</span>
           </button>
         </div>
       </div>
@@ -522,12 +552,12 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                     {pendingCount > 0 ? (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">
                         <Clock className="w-3 h-3 text-amber-700" />
-                        <span>{pendingCount} QR scan</span>
+                        <span>{pendingCount} to sign</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>{confirmedCount} confirmed</span>
+                        <span>{confirmedCount} signed</span>
                       </span>
                     )}
                     <span className="block text-[10px] text-slate-400 mt-1 font-mono">
@@ -730,15 +760,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                       <span>Edit Office</span>
                     </button>
 
-                    {/* Permanent Office QR Code Plaque & Scanner */}
+                    {/* Sign on Tablet / PC */}
                     <button
                       type="button"
-                      onClick={() => onOpenScanner(activeOffice)}
+                      onClick={handleOpenSignatureForActiveOffice}
                       className="px-2.5 py-1.5 text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 rounded-md border border-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
-                      title="View the permanent QR code for this Tourism Office"
+                      title="Sign deliveries on tablet or PC"
                     >
-                      <QrCode className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Permanent QR</span>
+                      <PenTool className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Sign on Tablet/PC</span>
                     </button>
 
                     {/* Delete Office Button */}
@@ -753,14 +783,14 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                       </button>
                     )}
 
-                    {/* Deliver Flyers / Generate QR */}
+                    {/* Deliver Flyers / Dispatch */}
                     <button
                       type="button"
                       onClick={() => setIsDispatchFormOpen(!isDispatchFormOpen)}
                       className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>{isDispatchFormOpen ? 'Cancel Delivery' : 'Deliver Flyers (Generate QR)'}</span>
+                      <span>{isDispatchFormOpen ? 'Cancel Delivery' : 'Deliver Flyers (Dispatch)'}</span>
                     </button>
                   </div>
                 </div>
@@ -774,7 +804,7 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                     </span>
                   </div>
                   <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200/60">
-                    <span className="text-[10px] font-bold uppercase text-emerald-800 block">Confirmed QR Receipts</span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-800 block">Signed Receipts</span>
                     <span className="text-base font-black text-emerald-800">{confirmedDeliveries.length}</span>
                   </div>
                   <div className="bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60">
@@ -812,7 +842,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2">
-                  <label className="block font-semibold text-slate-800 mb-1">Flyer Publication Material *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-800">Flyer Publication Material *</label>
+                    <span className="text-[11px] font-bold">
+                      Stock in Central Warehouse:{' '}
+                      <span className={dispatchAvailableStock <= 0 ? 'text-red-600' : 'text-emerald-700'}>
+                        {dispatchAvailableStock.toLocaleString()} un.
+                      </span>
+                    </span>
+                  </div>
                   <select
                     value={dispatchFlyerId}
                     onChange={(e) => setDispatchFlyerId(e.target.value)}
@@ -841,43 +879,88 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                 <div className="lg:col-span-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="block font-semibold text-slate-800">
-                      Amount of Flyers to Distribute (Qty) *
+                      Amount of Flyers to Distribute (Warehouse Stock Dependent) *
                     </label>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      1 a 1.000.000 un. (Gratuito &bull; Sem Custos)
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                      Max Available: {dispatchAvailableStock.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={1000000}
-                      step={1}
-                      value={dispatchQty}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        setDispatchQty(Math.max(1, Math.min(1000000, val)));
-                      }}
-                      className="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-900 font-black text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      required
-                    />
-                    <div className="flex flex-wrap gap-1">
-                      {[500, 1000, 5000, 10000, 25000, 50000, 100000, 500000, 1000000].map((preset) => (
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={Math.max(1, dispatchAvailableStock)}
+                        step={1}
+                        value={dispatchQty}
+                        disabled={isDispatchStockDepleted}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setDispatchQty(val);
+                        }}
+                        className={`w-full border rounded px-2.5 py-1.5 bg-white font-black text-sm focus:outline-none focus:ring-1 ${
+                          isDispatchStockInsufficient || isDispatchStockDepleted
+                            ? 'border-red-500 text-red-700 bg-red-50/40'
+                            : 'border-slate-300 text-slate-900 focus:ring-emerald-500'
+                        }`}
+                        required
+                      />
+                      {dispatchAvailableStock > 0 && (
                         <button
                           type="button"
-                          key={preset}
-                          onClick={() => setDispatchQty(preset)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
-                            dispatchQty === preset
-                              ? 'bg-emerald-700 text-white border-emerald-800'
-                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                          }`}
+                          onClick={() => setDispatchQty(dispatchAvailableStock)}
+                          className="absolute right-2 px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300 cursor-pointer"
                         >
-                          {preset.toLocaleString()}
+                          Max Stock
                         </button>
-                      ))}
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {[500, 1000, 2500, 5000, 10000, 25000].map((preset) => {
+                        const isDisabled = dispatchAvailableStock > 0 && preset > dispatchAvailableStock;
+                        return (
+                          <button
+                            type="button"
+                            key={preset}
+                            disabled={isDisabled || isDispatchStockDepleted}
+                            onClick={() => setDispatchQty(preset)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                              isDisabled || isDispatchStockDepleted
+                                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed line-through'
+                                : dispatchQty === preset
+                                ? 'bg-emerald-700 text-white border-emerald-800 cursor-pointer'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 cursor-pointer'
+                            }`}
+                          >
+                            {preset.toLocaleString()}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {isDispatchStockDepleted ? (
+                    <div className="mt-1.5 p-2 rounded bg-red-100 text-red-800 text-[11px] font-medium flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                        <span>Warehouse stock is 0. Deliveries must be sent from central stock.</span>
+                      </div>
+                      {onOpenAddStock && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenAddStock(dispatchFlyerId)}
+                          className="shrink-0 px-2 py-0.5 rounded bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] cursor-pointer"
+                        >
+                          + Receive Print Batch
+                        </button>
+                      )}
+                    </div>
+                  ) : isDispatchStockInsufficient ? (
+                    <div className="mt-1.5 p-2 rounded bg-amber-100 text-amber-900 text-[11px] font-medium flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Exceeds warehouse balance ({dispatchAvailableStock.toLocaleString()} available). Please reduce quantity.</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>
@@ -906,7 +989,7 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
               <div className="flex items-center justify-between pt-2 border-t border-emerald-200">
                 <span className="text-[11px] text-emerald-800 flex items-center gap-1 font-medium">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  Generating this delivery creates an official QR code and updates the inventory log.
+                  Registering this delivery enables immediate digital signature capture on tablet or PC.
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -918,10 +1001,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                    disabled={isDispatchDisabled}
+                    className={`px-4 py-1.5 rounded font-bold shadow-xs flex items-center gap-1.5 ${
+                      isDispatchDisabled
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer'
+                    }`}
                   >
-                    <QrCode className="w-4 h-4" />
-                    <span>Create Delivery &amp; Generate QR</span>
+                    <Check className="w-4 h-4" />
+                    <span>Create Delivery Dispatch</span>
                   </button>
                 </div>
               </div>
@@ -963,7 +1051,7 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                         : 'hover:text-slate-900'
                     }`}
                   >
-                    Pending QR ({pendingDeliveries.length})
+                    Pending Signature ({pendingDeliveries.length})
                   </button>
                   <button
                     type="button"
@@ -974,18 +1062,18 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                         : 'hover:text-slate-900'
                     }`}
                   >
-                    Confirmed ({confirmedDeliveries.length})
+                    Signed ({confirmedDeliveries.length})
                   </button>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => onOpenScanner(activeOffice)}
+                  onClick={handleOpenSignatureForActiveOffice}
                   className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
-                  title="Open Office QR Scanner"
+                  title="Sign pending deliveries on tablet or PC"
                 >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>Scan QR</span>
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Sign on Tablet/PC</span>
                 </button>
               </div>
             </div>
@@ -998,7 +1086,7 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                     <th className="py-3 px-4">Flyer Material</th>
                     <th className="py-3 px-4 text-right">Quantity</th>
                     <th className="py-3 px-4">Courier / Driver</th>
-                    <th className="py-3 px-4">QR Confirmation Status</th>
+                    <th className="py-3 px-4">Signature &amp; Status</th>
                     <th className="py-3 px-4 text-right">Actions &amp; Voucher</th>
                   </tr>
                 </thead>
@@ -1052,10 +1140,23 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                           <td className="py-3 px-4">
                             {isConfirmed ? (
                               <div>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                                  <span>Confirmed via QR</span>
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>Signed Digitally</span>
+                                  </span>
+                                  {del.signatureDataUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => fl && onOpenSignatureModal && onOpenSignatureModal(del, activeOffice, fl)}
+                                      className="px-1.5 py-0.5 bg-white border border-emerald-300 rounded text-[10px] text-emerald-800 font-semibold hover:bg-emerald-50 cursor-pointer shadow-2xs flex items-center gap-1"
+                                      title="View digital signature"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>View Signature</span>
+                                    </button>
+                                  )}
+                                </div>
                                 <span className="text-[10px] text-slate-500 block mt-0.5">
                                   by {del.confirmedBy || activeOffice.contactPerson} on{' '}
                                   {del.confirmedAt || del.date}
@@ -1063,10 +1164,23 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                               </div>
                             ) : (
                               <div>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                                  <Clock className="w-3.5 h-3.5 text-amber-700" />
-                                  <span>Pending Office Scan</span>
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                                    <span>Pending Signature</span>
+                                  </span>
+                                  {onOpenSignatureModal && fl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenSignatureModal(del, activeOffice, fl)}
+                                      className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                      title="Sign on tablet or PC"
+                                    >
+                                      <PenTool className="w-3 h-3 text-emerald-700" />
+                                      <span>Sign on Tablet/PC</span>
+                                    </button>
+                                  )}
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1075,9 +1189,9 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                                       activeOffice.contactPerson || `${activeOffice.name} Reception`
                                     )
                                   }
-                                  className="text-[10px] text-emerald-700 hover:text-emerald-900 font-semibold underline block mt-0.5 cursor-pointer"
+                                  className="text-[10px] text-slate-500 hover:text-emerald-700 underline block mt-0.5 cursor-pointer"
                                 >
-                                  Click to Quick Confirm
+                                  Quick confirm without drawing
                                 </button>
                               </div>
                             )}
@@ -1098,15 +1212,15 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                                 </button>
                               )}
 
-                              {/* Simplified Voucher Archive & Permanent QR Button */}
+                              {/* Simplified Voucher Archive & Digital Signature Button */}
                               <button
                                 type="button"
                                 onClick={() => fl && onOpenPrintSlip(del, activeOffice, fl)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-2xs cursor-pointer transition-colors"
-                                title="View & Print simplified delivery archive voucher with permanent Office QR"
+                                title="View & Print delivery archive voucher with digital signature"
                               >
                                 <Printer className="w-3.5 h-3.5" />
-                                <span>Voucher &amp; QR</span>
+                                <span>Voucher &amp; Signature</span>
                               </button>
 
                               {/* Delete Delivery Button */}
@@ -1269,14 +1383,14 @@ export const TourismOfficesHubView: React.FC<TourismOfficesHubViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">QR Confirmation Status</label>
+                  <label className="block font-bold text-slate-700 mb-1">Signature &amp; Confirmation Status</label>
                   <select
                     value={delEditStatus}
                     onChange={(e) => setDelEditStatus(e.target.value as 'pending' | 'confirmed')}
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded font-bold bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="pending">Pending QR Scan (Pendente)</option>
-                    <option value="confirmed">Confirmed via QR (Confirmado)</option>
+                    <option value="pending">Pending Signature (Pendente)</option>
+                    <option value="confirmed">Confirmed &amp; Signed (Assinado Digitalmente)</option>
                   </select>
                 </div>
 

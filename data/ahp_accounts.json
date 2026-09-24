@@ -1,0 +1,39 @@
+[
+  {
+    "id": "user-portal-ahp",
+    "email": "portal.ahp@gmail.com",
+    "name": "Aldeias Históricas de Portugal",
+    "role": "admin",
+    "passwordHash": "YWhwXzE5MTAyMTYwODRfNDI=",
+    "passwordHistory": [
+      "YWhwXzE5MTAyMTYwODRfNDI=",
+      "YWhwXy0xMjM4NDg5NzI2XzQ4"
+    ],
+    "lastLogin": "2026-09-24T08:37:31.529Z",
+    "createdAt": "2026-01-01"
+  },
+  {
+    "id": "user-admin-institucional",
+    "email": "admin@aldeiashistoricasdeportugal.com",
+    "name": "Administração Geral AHP",
+    "role": "admin",
+    "passwordHash": "YWhwXzE5MTAyMTYwODRfNDI=",
+    "passwordHistory": [
+      "YWhwXzE5MTAyMTYwODRfNDI=",
+      "YWhwXy0xMjM4NDg5NzI2XzQ4"
+    ],
+    "createdAt": "2026-01-15"
+  },
+  {
+    "id": "user-logistica-coordenador",
+    "email": "logistica@ahp.pt",
+    "name": "Coordenação de Stock e Postos",
+    "role": "logistics_coordinator",
+    "passwordHash": "YWhwXzE5MTAyMTYwODRfNDI=",
+    "passwordHistory": [
+      "YWhwXzE5MTAyMTYwODRfNDI=",
+      "YWhwXy0xMjM4NDg5NzI2XzQ4"
+    ],
+    "createdAt": "2026-02-01"
+  }
+]
