@@ -130,6 +130,7 @@ function saveServerStock(stockData: any) {
     const merged = {
       ...existing,
       ...stockData,
+      updatedAt: Date.now(),
       flyers:
         Array.isArray(stockData.flyers) && stockData.flyers.length > 0
           ? stockData.flyers
@@ -139,7 +140,7 @@ function saveServerStock(stockData: any) {
           ? stockData.offices
           : existing.offices || [],
       deliveries:
-        Array.isArray(stockData.deliveries) && stockData.deliveries.length > 0
+        Array.isArray(stockData.deliveries)
           ? stockData.deliveries
           : existing.deliveries || [],
       batches:
@@ -147,15 +148,22 @@ function saveServerStock(stockData: any) {
           ? stockData.batches
           : existing.batches || [],
       fairs:
-        Array.isArray(stockData.fairs) && stockData.fairs.length > 0
+        Array.isArray(stockData.fairs)
           ? stockData.fairs
           : existing.fairs || [],
       otherDeliveries:
-        Array.isArray(stockData.otherDeliveries) && stockData.otherDeliveries.length > 0
+        Array.isArray(stockData.otherDeliveries)
           ? stockData.otherDeliveries
           : existing.otherDeliveries || [],
+      metricOverrides:
+        stockData.metricOverrides && typeof stockData.metricOverrides === 'object'
+          ? stockData.metricOverrides
+          : existing.metricOverrides || {},
     };
     fs.writeFileSync(STOCK_FILE, JSON.stringify(merged, null, 2), 'utf-8');
+    console.log(
+      `[Stock-Sync] Saved stock: ${merged.flyers?.length || 0} flyers, ${merged.deliveries?.length || 0} deliveries, ${merged.batches?.length || 0} batches, ${merged.fairs?.length || 0} fairs`
+    );
   } catch (err) {
     console.error('[Server] Failed to write stock file:', err);
   }

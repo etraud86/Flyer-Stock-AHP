@@ -1,0 +1,5 @@
+# Netlify API proxy to central Cloud Run enterprise backend
+/api/*  https://ais-dev-z6dza4olbxnpdv5jsg4roc-413909422609.europe-west2.run.app/api/:splat  200!
+
+# SPA client-side routing fallback
+/*  /index.html  200

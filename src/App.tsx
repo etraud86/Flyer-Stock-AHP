@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { ExcelSheetView } from './components/ExcelSheetView';
@@ -22,6 +22,7 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { Footer } from './components/Footer';
 import { applyTargetStockToBatches, getFlyerTotalDispatched } from './utils/stockAdjustment';
 import { getCurrentSession, clearSession } from './utils/auth';
+import { fetchStockData, syncStockToServer } from './utils/apiConfig';
 
 import {
   ActiveTab,
@@ -100,77 +101,129 @@ export default function App() {
     initialDb.metricOverrides || {}
   );
 
+  // Tracks whether server data has been loaded so we never sync default empty data over existing server data
+  const isServerHydratedRef = useRef(false);
+  const hasLocalEditsRef = useRef(false);
+
+  const markDataEdited = useCallback(() => {
+    hasLocalEditsRef.current = true;
+  }, []);
+
   // Hardened Multi-Layer Persistence:
   // On startup, check IndexedDB. If local data was ever cleared by browser or incognito, recover it immediately!
   useEffect(() => {
-    loadFromIndexedDb().then((idbState) => {
-      if (idbState) {
-        setDeliveries((curr) => (curr.length === 0 && idbState.deliveries?.length > 0 ? idbState.deliveries : curr));
-        setFairs((curr) => (curr.length === 0 && idbState.fairs?.length > 0 ? idbState.fairs : curr));
-        setOtherDeliveries((curr) => (curr.length === 0 && idbState.otherDeliveries?.length > 0 ? idbState.otherDeliveries : curr));
-        setBatches((curr) => (curr.length <= 1 && idbState.batches?.length > 1 ? idbState.batches : curr));
-        setFlyers((curr) => (curr.length <= 1 && idbState.flyers?.length > 1 ? idbState.flyers : curr));
-      }
-    }).catch(() => {});
+    loadFromIndexedDb()
+      .then((idbState) => {
+        if (idbState) {
+          setDeliveries((curr) => (curr.length === 0 && idbState.deliveries?.length > 0 ? idbState.deliveries : curr));
+          setFairs((curr) => (curr.length === 0 && idbState.fairs?.length > 0 ? idbState.fairs : curr));
+          setOtherDeliveries((curr) =>
+            curr.length === 0 && idbState.otherDeliveries?.length > 0 ? idbState.otherDeliveries : curr
+          );
+          setBatches((curr) => (curr.length <= 1 && idbState.batches?.length > 1 ? idbState.batches : curr));
+          setFlyers((curr) => (curr.length <= 1 && idbState.flyers?.length > 1 ? idbState.flyers : curr));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Multi-Workstation & Multi-IP Central Sync:
-  // Non-destructive fetch: server data is merged, and empty remote arrays NEVER overwrite user data entered on netlify.app
-  useEffect(() => {
-    fetch('/api/stock/data')
-      .then((r) => r.json())
-      .then((res) => {
-        if (res && res.success && res.data) {
-          const s = res.data;
-          if (Array.isArray(s.flyers) && s.flyers.length > 0) {
-            setFlyers((curr) => {
-              const existingIds = new Set(curr.map((f) => f.id));
-              const additions = s.flyers.filter((f: FlyerType) => !existingIds.has(f.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
-            });
-          }
-          if (Array.isArray(s.offices) && s.offices.length > 0) {
-            setOffices((curr) => {
-              const existingIds = new Set(curr.map((o) => o.id));
-              const additions = s.offices.filter((o: TourismOffice) => !existingIds.has(o.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
-            });
-          }
-          // Only add remote deliveries if server actually has records - never wipe local deliveries!
-          if (Array.isArray(s.deliveries) && s.deliveries.length > 0) {
+  // Authoritative server fetch ensures that any computer, browser, or IP immediately receives the latest shared data!
+  const fetchRemoteStock = useCallback(async () => {
+    try {
+      const res = await fetchStockData();
+      if (res && res.success && res.data) {
+        const s = res.data;
+        if (Array.isArray(s.flyers) && s.flyers.length > 0) {
+          setFlyers(s.flyers);
+        }
+        if (Array.isArray(s.offices) && s.offices.length > 0) {
+          setOffices(s.offices);
+        }
+        if (Array.isArray(s.deliveries)) {
+          if (s.deliveries.length > 0) {
+            setDeliveries(s.deliveries);
+          } else {
+            // If server has empty deliveries but client has local un-synced deliveries, mark for sync
             setDeliveries((curr) => {
-              const existingIds = new Set(curr.map((d) => d.id));
-              const additions = s.deliveries.filter((d: DeliveryRecord) => !existingIds.has(d.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
-            });
-          }
-          if (Array.isArray(s.batches) && s.batches.length > 0) {
-            setBatches((curr) => {
-              const existingIds = new Set(curr.map((b) => b.id));
-              const additions = s.batches.filter((b: StockInBatch) => !existingIds.has(b.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
-            });
-          }
-          if (Array.isArray(s.fairs) && s.fairs.length > 0) {
-            setFairs((curr) => {
-              const existingIds = new Set(curr.map((f) => f.id));
-              const additions = s.fairs.filter((f: TourismFair) => !existingIds.has(f.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
-            });
-          }
-          if (Array.isArray(s.otherDeliveries) && s.otherDeliveries.length > 0) {
-            setOtherDeliveries((curr) => {
-              const existingIds = new Set(curr.map((o) => o.id));
-              const additions = s.otherDeliveries.filter((o: OtherDeliveryRecord) => !existingIds.has(o.id));
-              return additions.length > 0 ? [...curr, ...additions] : curr;
+              if (curr.length > 0) hasLocalEditsRef.current = true;
+              return curr;
             });
           }
         }
-      })
-      .catch((err) => console.warn('[Stock Sync] Central server fetch notice:', err));
+        if (Array.isArray(s.batches) && s.batches.length > 0) {
+          setBatches(s.batches);
+        }
+        if (Array.isArray(s.fairs)) {
+          if (s.fairs.length > 0) {
+            setFairs(s.fairs);
+          } else {
+            setFairs((curr) => {
+              if (curr.length > 0) hasLocalEditsRef.current = true;
+              return curr;
+            });
+          }
+        }
+        if (Array.isArray(s.otherDeliveries)) {
+          if (s.otherDeliveries.length > 0) {
+            setOtherDeliveries(s.otherDeliveries);
+          } else {
+            setOtherDeliveries((curr) => {
+              if (curr.length > 0) hasLocalEditsRef.current = true;
+              return curr;
+            });
+          }
+        }
+        if (s.metricOverrides && typeof s.metricOverrides === 'object') {
+          setMetricOverrides(s.metricOverrides);
+        }
+
+        // Keep local persistent database in sync with authoritative server state
+        persistDatabaseState({
+          flyers: s.flyers || [],
+          offices: s.offices || [],
+          deliveries: s.deliveries || [],
+          batches: s.batches || [],
+          fairs: s.fairs || [],
+          otherDeliveries: s.otherDeliveries || [],
+          metricOverrides: s.metricOverrides || {},
+        });
+      }
+    } catch (err) {
+      console.warn('[Stock Sync] Central server fetch error:', err);
+    } finally {
+      isServerHydratedRef.current = true;
+    }
   }, []);
 
+  // Fetch initial data immediately on mount
+  useEffect(() => {
+    fetchRemoteStock();
+  }, [fetchRemoteStock]);
+
+  // Real-time synchronization across workstations & browsers:
+  // Re-sync when switching back to tab and poll every 5 seconds
+  useEffect(() => {
+    const handleFocus = () => {
+      if (!hasLocalEditsRef.current) {
+        fetchRemoteStock();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(() => {
+      if (!hasLocalEditsRef.current) {
+        fetchRemoteStock();
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [fetchRemoteStock]);
+
   const handleUpdateMetricOverride = (key: string, override: Partial<OfficeFlyerMetricOverride>) => {
+    markDataEdited();
     setMetricOverrides((prev) => ({
       ...prev,
       [key]: {
@@ -182,6 +235,7 @@ export default function App() {
   };
 
   const handleResetMetricOverride = (key: string) => {
+    markDataEdited();
     setMetricOverrides((prev) => {
       const copy = { ...prev };
       delete copy[key];
@@ -303,28 +357,31 @@ export default function App() {
     } catch (e) {}
   }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides]);
 
-  // Synchronize stock changes to central server so all PCs, tablets, and IPs stay unified
+  // Synchronize stock changes to central server ONLY after initial server hydration and ONLY when user made edits
   useEffect(() => {
+    if (!isServerHydratedRef.current || !hasLocalEditsRef.current) {
+      return;
+    }
+
     const timer = setTimeout(() => {
-      try {
-        fetch('/api/stock/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            flyers,
-            offices,
-            deliveries,
-            batches,
-            fairs,
-            otherDeliveries,
-          }),
-        }).catch((err) => console.warn('[Stock Sync] Central broadcast notice:', err));
-      } catch (e) {
-        console.warn('[Stock Sync] Central broadcast error:', e);
-      }
-    }, 1200);
+      syncStockToServer({
+        flyers,
+        offices,
+        deliveries,
+        batches,
+        fairs,
+        otherDeliveries,
+        metricOverrides,
+        updatedAt: Date.now(),
+      })
+        .then(() => {
+          hasLocalEditsRef.current = false;
+        })
+        .catch((err) => console.warn('[Stock Sync] Central broadcast notice:', err));
+    }, 600);
+
     return () => clearTimeout(timer);
-  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries]);
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides]);
 
   // Keep warehouse stock batches strictly connected to registered flyer materials
   useEffect(() => {
@@ -438,6 +495,7 @@ export default function App() {
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     let updatedCount = 0;
+    markDataEdited();
 
     setDeliveries((prev) => {
       const updated = prev.map((d) => {
@@ -545,6 +603,7 @@ export default function App() {
   };
 
   const handleUpdateOffice = (officeId: string, updatedData: Partial<TourismOffice>) => {
+    markDataEdited();
     setOffices((prev) =>
       prev.map((o) => (o.id === officeId ? { ...o, ...updatedData } : o))
     );
@@ -553,6 +612,7 @@ export default function App() {
   };
 
   const handleAddOffice = (newOfficeData: Omit<TourismOffice, 'id'>) => {
+    markDataEdited();
     const newOffice: TourismOffice = {
       ...newOfficeData,
       id: `off-${Date.now()}`,
@@ -562,6 +622,7 @@ export default function App() {
   };
 
   const handleDeleteOffice = (officeId: string) => {
+    markDataEdited();
     const office = offices.find((o) => o.id === officeId);
     setOffices((prev) => prev.filter((o) => o.id !== officeId));
     showToast(`Removed "${office?.name || officeId}" from directory.`);
@@ -608,6 +669,7 @@ export default function App() {
     signatureDataUrl: string,
     signAllPending?: boolean
   ) => {
+    markDataEdited();
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     setDeliveries((prev) => {
@@ -658,6 +720,7 @@ export default function App() {
   };
 
   const handleConfirmDelivery = (deliveryId: string, confirmedBy: string) => {
+    markDataEdited();
     const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
     setDeliveries((prev) =>
       prev.map((d) => {
@@ -690,6 +753,7 @@ export default function App() {
     existingCount: number,
     newCount: number
   ) => {
+    markDataEdited();
     setFlyers(updatedFlyers);
     setBatches(updatedBatches);
     showToast(
@@ -698,6 +762,7 @@ export default function App() {
   };
 
   const handleAddFlyer = (newFlyerData: Omit<FlyerType, 'id'>, initialStock: number) => {
+    markDataEdited();
     const newFlyerId = `flyer-${Date.now()}`;
     const newFlyer: FlyerType = {
       ...newFlyerData,
@@ -733,6 +798,7 @@ export default function App() {
     updatedFlyerDetails: Partial<FlyerType>,
     reason: string
   ) => {
+    markDataEdited();
     // 1. Update flyer metadata
     setFlyers((prev) =>
       prev.map((f) => {
@@ -766,6 +832,7 @@ export default function App() {
   };
 
   const handleDeleteFlyer = (flyerId: string) => {
+    markDataEdited();
     const flyer = flyers.find((f) => f.id === flyerId);
     setFlyers((prev) => prev.filter((f) => f.id !== flyerId));
     setBatches((prev) => prev.filter((b) => b.flyerTypeId !== flyerId));
@@ -789,6 +856,7 @@ export default function App() {
       return;
     }
 
+    markDataEdited();
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const dateFormatted = newDelivery.date.replace(/-/g, '').slice(4);
     const deliveryRef = `DEL-2026-${dateFormatted}-${padNum}`;
@@ -809,6 +877,7 @@ export default function App() {
   };
 
   const handleCreateStockBatch = (newBatch: Omit<StockInBatch, 'id' | 'batchRef'>) => {
+    markDataEdited();
     const batchNum = (batches.length + 1).toString().padStart(3, '0');
     const batchRef = `PO-2026-PRINT-${batchNum}`;
 
@@ -827,6 +896,7 @@ export default function App() {
   };
 
   const handleQuickReceiveStock = (flyerTypeId: string, quantity: number = 10000) => {
+    markDataEdited();
     const flyer = flyers.find((f) => f.id === flyerTypeId);
     const batchNum = (batches.length + 1).toString().padStart(3, '0');
     const batchRef = `PO-2026-PRINT-${batchNum}`;
@@ -854,6 +924,7 @@ export default function App() {
   };
 
   const handleRecordDepletion = (deliveryId: string, depletedDate: string) => {
+    markDataEdited();
     setDeliveries((prev) =>
       prev.map((d) => (d.id === deliveryId ? { ...d, depletedDate } : d))
     );
@@ -861,6 +932,7 @@ export default function App() {
   };
 
   const handleRecordNewRequest = (deliveryId: string, newRequestDate: string) => {
+    markDataEdited();
     setDeliveries((prev) =>
       prev.map((d) => (d.id === deliveryId ? { ...d, newRequestDate } : d))
     );
@@ -880,6 +952,7 @@ export default function App() {
       }
     }
 
+    markDataEdited();
     const created: TourismFair = {
       ...newFair,
       id: `fair-${Date.now()}`,
@@ -889,6 +962,7 @@ export default function App() {
   };
 
   const handleDeleteFair = (id: string) => {
+    markDataEdited();
     setFairs((prev) => prev.filter((f) => f.id !== id));
     showToast('Removed fair record from inventory subtraction.');
   };
@@ -910,6 +984,7 @@ export default function App() {
       return;
     }
 
+    markDataEdited();
     const padNum = (otherDeliveries.length + 1).toString().padStart(3, '0');
     const created: OtherDeliveryRecord = {
       ...newRecord,
@@ -921,6 +996,7 @@ export default function App() {
   };
 
   const handleDeleteOtherDelivery = (id: string) => {
+    markDataEdited();
     setOtherDeliveries((prev) => prev.filter((od) => od.id !== id));
     showToast('Removed delivery record.');
   };
@@ -936,6 +1012,7 @@ export default function App() {
       notes: string;
     }>
   ) => {
+    markDataEdited();
     const createdList: DeliveryRecord[] = newDels.map((nd, idx) => {
       const padNum = (deliveries.length + idx + 1).toString().padStart(3, '0');
       const dateFormatted = nd.date.replace(/-/g, '').slice(4);
@@ -956,6 +1033,7 @@ export default function App() {
       setIsAddFlyerModalOpen(true);
       return;
     }
+    markDataEdited();
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const newDelivery: DeliveryRecord = {
       id: `del-${Date.now()}`,
@@ -972,6 +1050,7 @@ export default function App() {
   };
 
   const handleUpdateDelivery = (deliveryId: string, patch: Partial<DeliveryRecord>) => {
+    markDataEdited();
     setDeliveries((prev) =>
       prev.map((d) => (d.id === deliveryId ? { ...d, ...patch } : d))
     );
@@ -979,11 +1058,13 @@ export default function App() {
   };
 
   const handleDeleteDelivery = (deliveryId: string) => {
+    markDataEdited();
     setDeliveries((prev) => prev.filter((d) => d.id !== deliveryId));
     showToast('Removed delivery record.');
   };
 
   const handleAddDeliveryRecord = (delData: Partial<DeliveryRecord>) => {
+    markDataEdited();
     const padNum = (deliveries.length + 1).toString().padStart(3, '0');
     const date = delData.date || TODAY_STR;
     const newDelivery: DeliveryRecord = {
@@ -1003,6 +1084,7 @@ export default function App() {
   };
 
   const handleUpdateFair = (fairId: string, patch: Partial<TourismFair>) => {
+    markDataEdited();
     setFairs((prev) =>
       prev.map((f) => (f.id === fairId ? { ...f, ...patch } : f))
     );
@@ -1010,6 +1092,7 @@ export default function App() {
   };
 
   const handleUpdateOtherDelivery = (recordId: string, patch: Partial<OtherDeliveryRecord>) => {
+    markDataEdited();
     setOtherDeliveries((prev) =>
       prev.map((r) => (r.id === recordId ? { ...r, ...patch } : r))
     );
@@ -1017,6 +1100,7 @@ export default function App() {
   };
 
   const handleUpdateFlyerDirect = (flyerId: string, patch: Partial<FlyerType>) => {
+    markDataEdited();
     setFlyers((prev) =>
       prev.map((f) => (f.id === flyerId ? { ...f, ...patch } : f))
     );
@@ -1047,6 +1131,7 @@ export default function App() {
         const content = e.target?.result as string;
         const parsed = JSON.parse(content);
         if (parsed) {
+          markDataEdited();
           if (Array.isArray(parsed.flyers) && parsed.flyers.length > 0) setFlyers(parsed.flyers);
           if (Array.isArray(parsed.offices) && parsed.offices.length > 0) setOffices(parsed.offices);
           if (Array.isArray(parsed.deliveries)) setDeliveries(parsed.deliveries);
@@ -1074,6 +1159,7 @@ export default function App() {
         otherDeliveries,
         metricOverrides,
       });
+      markDataEdited();
       setFlyers(INITIAL_FLYER_TYPES);
       setDeliveries([]);
       setBatches(INITIAL_BATCHES);

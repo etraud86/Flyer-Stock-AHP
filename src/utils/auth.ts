@@ -1,4 +1,5 @@
 import { AuthUser, AuthSession } from '../types';
+import { fetchWithFallback } from './apiConfig';
 
 const STORAGE_KEYS = {
   CREDENTIALS: 'ahp_auth_credentials_v2',
@@ -264,7 +265,7 @@ export function getStoredAccounts(): StoredUserAccount[] {
  */
 export async function fetchServerAccounts(): Promise<StoredUserAccount[]> {
   try {
-    const response = await fetch('/api/auth/accounts');
+    const response = await fetchWithFallback('/api/auth/accounts');
     if (response.ok) {
       const data = await response.json();
       if (data.success && Array.isArray(data.accounts) && data.accounts.length > 0) {
@@ -287,7 +288,7 @@ export function saveStoredAccounts(accounts: StoredUserAccount[]) {
   localStorage.setItem(STORAGE_KEYS.CREDENTIALS, JSON.stringify(accounts));
   // Central server synchronization so all workstations/IPs immediately have the updated accounts
   try {
-    fetch('/api/auth/accounts', {
+    fetchWithFallback('/api/auth/accounts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accounts }),
@@ -526,7 +527,7 @@ export function loginUser(
 
   // Background sync login with server
   try {
-    fetch('/api/auth/login', {
+    fetchWithFallback('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, password: cleanPass, rememberMe }),
@@ -570,7 +571,7 @@ export async function authenticateWithServerOrLocal(
 
   // 1. Try server-side authentication first for multi-device sync
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetchWithFallback('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, password: cleanPass, rememberMe }),
@@ -630,7 +631,7 @@ export function directResetPassword(
 
   // Synchronize password reset with central server immediately so any other PC or IP has it
   try {
-    fetch('/api/auth/reset-password', {
+    fetchWithFallback('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, newPassword: newPasswordInput }),
