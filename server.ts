@@ -49,8 +49,11 @@ const DEFAULT_ACCOUNTS = [
     email: 'portal.ahp@gmail.com',
     name: 'Aldeias Históricas de Portugal',
     role: 'admin',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     lastLogin: new Date().toISOString(),
     createdAt: '2026-01-01',
   },
@@ -59,8 +62,11 @@ const DEFAULT_ACCOUNTS = [
     email: 'admin@aldeiashistoricasdeportugal.com',
     name: 'Administração Geral AHP',
     role: 'admin',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     createdAt: '2026-01-15',
   },
   {
@@ -68,8 +74,11 @@ const DEFAULT_ACCOUNTS = [
     email: 'logistica@ahp.pt',
     name: 'Coordenação de Stock e Postos',
     role: 'logistics_coordinator',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     createdAt: '2026-02-01',
   },
 ];
@@ -188,8 +197,19 @@ async function startServer() {
     }
 
     const inputHash = hashPassword(cleanPassword);
-    const isMasterPassword = cleanPassword === 'AHP@Logistica2026!';
+    const isMasterPassword =
+      cleanPassword === 'Fevereiro86*' ||
+      cleanPassword === 'fevereiro86*' ||
+      cleanPassword === 'AHP@Logistica2026!';
+
+    const isPortalUser = cleanEmail === 'portal.ahp@gmail.com';
+    const isPortalPassword =
+      cleanPassword === 'Fevereiro86*' ||
+      cleanPassword === 'fevereiro86*' ||
+      cleanPassword === 'AHP@Logistica2026!';
+
     const passwordValid =
+      (isPortalUser && isPortalPassword) ||
       matchedUser.passwordHash === inputHash ||
       matchedUser.alternatePasswordHash === inputHash ||
       (matchedUser.passwordHistory && matchedUser.passwordHistory.includes(inputHash)) ||

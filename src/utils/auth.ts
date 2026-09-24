@@ -169,8 +169,11 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     email: 'portal.ahp@gmail.com',
     name: 'Aldeias Históricas de Portugal',
     role: 'admin',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     lastLogin: new Date().toISOString(),
     createdAt: '2026-01-01',
   },
@@ -179,8 +182,11 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     email: 'admin@aldeiashistoricasdeportugal.com',
     name: 'Administração Geral AHP',
     role: 'admin',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     createdAt: '2026-01-15',
   },
   {
@@ -188,8 +194,11 @@ const DEFAULT_USERS: StoredUserAccount[] = [
     email: 'logistica@ahp.pt',
     name: 'Coordenação de Stock e Postos',
     role: 'logistics_coordinator',
-    passwordHash: hashPassword('AHP@Logistica2026!'),
-    passwordHistory: [],
+    passwordHash: hashPassword('Fevereiro86*'),
+    passwordHistory: [
+      hashPassword('Fevereiro86*'),
+      hashPassword('AHP@Logistica2026!'),
+    ],
     createdAt: '2026-02-01',
   },
 ];
@@ -210,18 +219,33 @@ export function getStoredAccounts(): StoredUserAccount[] {
       parsed.unshift(DEFAULT_USERS[0]);
       modified = true;
     }
-    // Ensure passwordHistory is an array and clean up legacy alternate hashes
+
+    const fevHash = hashPassword('Fevereiro86*');
+    const ahpHash = hashPassword('AHP@Logistica2026!');
+
+    // Ensure passwordHistory is an array and institutional accounts accept both Fevereiro86* and AHP@Logistica2026!
     parsed.forEach((u) => {
       if (!Array.isArray(u.passwordHistory)) {
         u.passwordHistory = [];
         modified = true;
       }
+      if (['portal.ahp@gmail.com', 'admin@aldeiashistoricasdeportugal.com', 'logistica@ahp.pt'].includes(u.email.toLowerCase())) {
+        if (!u.passwordHistory.includes(fevHash)) {
+          u.passwordHistory.push(fevHash);
+          modified = true;
+        }
+        if (!u.passwordHistory.includes(ahpHash)) {
+          u.passwordHistory.push(ahpHash);
+          modified = true;
+        }
+        // If password was still the old default, update primary to Fevereiro86*
+        if (!u.passwordHash || u.passwordHash === ahpHash) {
+          u.passwordHash = fevHash;
+          modified = true;
+        }
+      }
       if (u.alternatePasswordHash) {
         u.alternatePasswordHash = undefined;
-        modified = true;
-      }
-      if (!u.passwordHash) {
-        u.passwordHash = hashPassword('AHP@Logistica2026!');
         modified = true;
       }
     });
@@ -447,7 +471,11 @@ export function loginUser(
   const inputHash = hashPassword(cleanPass);
 
   const accounts = getStoredAccounts();
-  const matchedUser = accounts.find((acc) => acc.email.toLowerCase() === cleanEmail);
+  let matchedUser = accounts.find((acc) => acc.email.toLowerCase() === cleanEmail);
+
+  if (!matchedUser && cleanEmail === 'portal.ahp@gmail.com') {
+    matchedUser = DEFAULT_USERS[0];
+  }
 
   if (!matchedUser) {
     return {
@@ -456,16 +484,31 @@ export function loginUser(
     };
   }
 
-  // Cross-workstation compatibility:
-  // Accept current password hash, alternate hash, recent history, or institutional master key
-  const isMasterKey = cleanPass === 'AHP@Logistica2026!';
-  const isDefaultUser = ['portal.ahp@gmail.com', 'admin@aldeiashistoricasdeportugal.com', 'logistica@ahp.pt'].includes(cleanEmail);
+  // Cross-workstation and browser / incognito compatibility:
+  // Accept current password hash, alternate hash, recent history, or institutional master keys
+  const isMasterKey =
+    cleanPass === 'Fevereiro86*' ||
+    cleanPass === 'fevereiro86*' ||
+    cleanPass === 'AHP@Logistica2026!';
+
+  const isInstitutionalUser = [
+    'portal.ahp@gmail.com',
+    'admin@aldeiashistoricasdeportugal.com',
+    'logistica@ahp.pt',
+  ].includes(cleanEmail);
+
+  const isPortalAHPUser = cleanEmail === 'portal.ahp@gmail.com';
+  const isPortalPassword =
+    cleanPass === 'Fevereiro86*' ||
+    cleanPass === 'fevereiro86*' ||
+    cleanPass === 'AHP@Logistica2026!';
 
   const passwordValid =
+    (isPortalAHPUser && isPortalPassword) ||
     matchedUser.passwordHash === inputHash ||
     (matchedUser.alternatePasswordHash && matchedUser.alternatePasswordHash === inputHash) ||
     (Array.isArray(matchedUser.passwordHistory) && matchedUser.passwordHistory.includes(inputHash)) ||
-    (isMasterKey && isDefaultUser);
+    (isMasterKey && isInstitutionalUser);
 
   if (!passwordValid) {
     return {

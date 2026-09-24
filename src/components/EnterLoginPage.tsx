@@ -544,12 +544,12 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                 {isHelpOpen && (
                   <div className="space-y-1.5 bg-neutral-950 p-3 rounded-xl border border-neutral-800 text-[11px] animate-in fade-in">
                     <div
-                      onClick={() => handleFillCredentials('portal.ahp@gmail.com', 'AHP@Logistica2026!')}
+                      onClick={() => handleFillCredentials('portal.ahp@gmail.com', 'Fevereiro86*')}
                       className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-between cursor-pointer transition-colors"
                     >
                       <div>
                         <span className="font-bold text-white block">AHP Administrator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com • pass: AHP@Logistica2026!</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">portal.ahp@gmail.com • pass: Fevereiro86*</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill
@@ -557,12 +557,12 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
                     </div>
 
                     <div
-                      onClick={() => handleFillCredentials('logistica@ahp.pt', 'AHP@Logistica2026!')}
+                      onClick={() => handleFillCredentials('logistica@ahp.pt', 'Fevereiro86*')}
                       className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 flex items-center justify-between cursor-pointer transition-colors"
                     >
                       <div>
                         <span className="font-bold text-white block">Logistics Coordinator</span>
-                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt • pass: AHP@Logistica2026!</span>
+                        <span className="text-neutral-400 font-mono text-[10px]">logistica@ahp.pt • pass: Fevereiro86*</span>
                       </div>
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-semibold">
                         Auto-Fill
