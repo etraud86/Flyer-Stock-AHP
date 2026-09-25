@@ -1,6 +1,8 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 
 interface ConfirmedOfficeEvent {
@@ -112,11 +114,25 @@ function saveServerAccounts(accounts: any[]) {
   }
 }
 
+function bumpSemverPatch(version: string = '1.0.1'): string {
+  const parts = String(version || '1.0.1').replace(/^v/i, '').trim().split('.');
+  const major = parseInt(parts[0] || '1', 10);
+  const minor = parseInt(parts[1] || '0', 10);
+  const patch = parseInt(parts[2] || '1', 10);
+  return `${isNaN(major) ? 1 : major}.${isNaN(minor) ? 0 : minor}.${(isNaN(patch) ? 1 : patch) + 1}`;
+}
+
 function loadServerStock(): any | null {
   try {
     if (fs.existsSync(STOCK_FILE)) {
       const raw = fs.readFileSync(STOCK_FILE, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        if (!parsed.version) {
+          parsed.version = '1.0.1';
+        }
+        return parsed;
+      }
     }
   } catch (err) {
     console.error('[Server] Failed to read stock file:', err);
@@ -124,19 +140,44 @@ function loadServerStock(): any | null {
   return null;
 }
 
-function saveServerStock(stockData: any) {
+let wssInstance: WebSocketServer | null = null;
+
+function broadcastStockUpdate(stock: any, senderClientId?: string) {
+  if (!wssInstance) return;
+  const payload = JSON.stringify({
+    type: 'sync:broadcast',
+    data: stock,
+    version: stock.version || '1.0.1',
+    updatedAt: stock.updatedAt || Date.now(),
+    senderId: senderClientId,
+  });
+
+  wssInstance.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(payload);
+      } catch (err) {
+        console.warn('[WS] Failed to send update to client:', err);
+      }
+    }
+  });
+}
+
+function saveServerStock(stockData: any): any {
   try {
     const existing = loadServerStock() || {};
+    const nextVersion = stockData.explicitVersion || bumpSemverPatch(existing.version || '1.0.1');
     const merged = {
       ...existing,
       ...stockData,
+      version: nextVersion,
       updatedAt: Date.now(),
       flyers:
-        Array.isArray(stockData.flyers) && stockData.flyers.length > 0
+        Array.isArray(stockData.flyers)
           ? stockData.flyers
           : existing.flyers || [],
       offices:
-        Array.isArray(stockData.offices) && stockData.offices.length > 0
+        Array.isArray(stockData.offices)
           ? stockData.offices
           : existing.offices || [],
       deliveries:
@@ -144,7 +185,7 @@ function saveServerStock(stockData: any) {
           ? stockData.deliveries
           : existing.deliveries || [],
       batches:
-        Array.isArray(stockData.batches) && stockData.batches.length > 0
+        Array.isArray(stockData.batches)
           ? stockData.batches
           : existing.batches || [],
       fairs:
@@ -162,10 +203,12 @@ function saveServerStock(stockData: any) {
     };
     fs.writeFileSync(STOCK_FILE, JSON.stringify(merged, null, 2), 'utf-8');
     console.log(
-      `[Stock-Sync] Saved stock: ${merged.flyers?.length || 0} flyers, ${merged.deliveries?.length || 0} deliveries, ${merged.batches?.length || 0} batches, ${merged.fairs?.length || 0} fairs`
+      `[Stock-Sync] Saved stock v${merged.version}: ${merged.flyers?.length || 0} flyers, ${merged.deliveries?.length || 0} deliveries, ${merged.batches?.length || 0} batches, ${merged.fairs?.length || 0} fairs`
     );
+    return merged;
   } catch (err) {
     console.error('[Server] Failed to write stock file:', err);
+    return null;
   }
 }
 
@@ -316,14 +359,28 @@ async function startServer() {
   // -------------------------------------------------------------
   app.get('/api/stock/data', (req, res) => {
     const stock = loadServerStock();
-    res.json({ success: true, data: stock });
+    res.json({
+      success: true,
+      data: stock,
+      version: stock?.version || '1.0.1',
+      timestamp: stock?.updatedAt || Date.now(),
+    });
   });
 
   app.post('/api/stock/sync', (req, res) => {
     const stockPayload = req.body;
     if (stockPayload && typeof stockPayload === 'object') {
-      saveServerStock(stockPayload);
-      return res.json({ success: true, timestamp: Date.now() });
+      const clientId = stockPayload.clientId;
+      const saved = saveServerStock(stockPayload);
+      if (saved) {
+        broadcastStockUpdate(saved, clientId);
+        return res.json({
+          success: true,
+          version: saved.version,
+          data: saved,
+          timestamp: saved.updatedAt,
+        });
+      }
     }
     res.status(400).json({ success: false, error: 'Invalid stock data' });
   });
@@ -497,8 +554,51 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[FlyerStock AHP Server] Running on http://0.0.0.0:${PORT}`);
+  const server = http.createServer(app);
+
+  // Initialize real-time WebSocket server attached to HTTP server
+  wssInstance = new WebSocketServer({ server });
+
+  wssInstance.on('connection', (ws, req) => {
+    const ip = req.socket.remoteAddress || 'unknown';
+    console.log(`[WS-Sync] Client connected from ${ip}`);
+
+    // Send initial authoritative stock data and current program version immediately upon connection
+    const currentStock = loadServerStock();
+    if (currentStock) {
+      ws.send(
+        JSON.stringify({
+          type: 'sync:init',
+          data: currentStock,
+          version: currentStock.version || '1.0.1',
+          updatedAt: currentStock.updatedAt || Date.now(),
+        })
+      );
+    }
+
+    ws.on('message', (message) => {
+      try {
+        const parsed = JSON.parse(message.toString());
+        if (parsed.type === 'sync:update' && parsed.data) {
+          const saved = saveServerStock(parsed.data);
+          if (saved) {
+            broadcastStockUpdate(saved, parsed.clientId);
+          }
+        } else if (parsed.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
+        }
+      } catch (err) {
+        console.error('[WS-Sync] Error handling message:', err);
+      }
+    });
+
+    ws.on('error', (err) => {
+      console.warn('[WS-Sync] Client error:', err);
+    });
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[FlyerStock AHP Server] Running with Real-Time WebSockets on http://0.0.0.0:${PORT}`);
   });
 }
 

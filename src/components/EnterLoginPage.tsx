@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
-import { APP_VERSION_LABEL } from '../version';
+import { formatVersionLabel } from '../version';
+import { fetchStockData } from '../utils/apiConfig';
 import {
   loginUser,
   authenticateWithServerOrLocal,
@@ -29,11 +30,12 @@ import { AuthSession } from '../types';
 
 interface EnterLoginPageProps {
   onLoginSuccess: (session: AuthSession) => void;
+  appVersion?: string;
 }
 
 type LoginView = 'login' | 'reset_password' | 'reset_success';
 
-export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }) => {
+export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess, appVersion }) => {
   const [view, setView] = useState<LoginView>('login');
 
   // Login form state - starts empty every time as requested by user
@@ -53,9 +55,27 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
-  // On mount: sync latest accounts from central server so any IP has up-to-date credentials
+  const [displayVersion, setDisplayVersion] = useState<string>(appVersion || '1.0.1');
+
+  useEffect(() => {
+    if (appVersion) setDisplayVersion(appVersion);
+  }, [appVersion]);
+
+  // On mount & background polling: sync latest accounts and program version from central server so any IP has up-to-date state
   useEffect(() => {
     fetchServerAccounts().catch(() => {});
+    const syncServerVersion = () => {
+      fetchStockData()
+        .then((res) => {
+          if (res && res.version) {
+            setDisplayVersion(res.version);
+          }
+        })
+        .catch(() => {});
+    };
+    syncServerVersion();
+    const interval = setInterval(syncServerVersion, 2500);
+    return () => clearInterval(interval);
   }, []);
 
   // Direct Sign-In (Supports any PC or IP)
@@ -587,7 +607,7 @@ export const EnterLoginPage: React.FC<EnterLoginPageProps> = ({ onLoginSuccess }
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
           <InstitutionalCoFinancingLogos showLabels={false} />
-          <span className="text-neutral-400 text-[10px] font-mono">{APP_VERSION_LABEL}</span>
+          <span className="text-neutral-400 text-[10px] font-mono">{formatVersionLabel(displayVersion)}</span>
         </div>
       </footer>
     </div>

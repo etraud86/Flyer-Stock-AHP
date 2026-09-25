@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { AHPCasteloIcon } from './AHPLogo';
 import { InstitutionalCoFinancingLogos } from './InstitutionalCoFinancingLogos';
-import { APP_VERSION_LABEL } from '../version';
+import { formatVersionLabel } from '../version';
 import { AuthUser, FlyerType, TourismOffice, DeliveryRecord } from '../types';
 
 interface FooterProps {
@@ -16,12 +16,14 @@ interface FooterProps {
   flyers?: FlyerType[];
   offices?: TourismOffice[];
   deliveries?: DeliveryRecord[];
+  appVersion?: string;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   currentUser,
   onLogout,
   onOpenChangePassword,
+  appVersion,
 }) => {
   return (
     <footer className="w-full bg-neutral-950 text-neutral-300 border-t border-neutral-800/80 mt-auto transition-colors">
@@ -102,7 +104,7 @@ export const Footer: React.FC<FooterProps> = ({
             <span>&copy; {new Date().getFullYear()} Aldeias Históricas de Portugal. All rights reserved.</span>
           </div>
           <span className="text-neutral-400 font-mono text-[10px]">
-            {APP_VERSION_LABEL}
+            {formatVersionLabel(appVersion)}
           </span>
         </div>
       </div>

@@ -26,6 +26,19 @@ export function getApiUrl(path: string): string {
 }
 
 /**
+ * Resolves the appropriate WebSocket URL based on current host environment.
+ */
+export function getWsUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.hostname.toLowerCase();
+  if (host.includes('netlify.app') || host.includes('vercel.app') || host.includes('github.io')) {
+    return CLOUD_BACKEND_URL.replace(/^http/i, 'ws');
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}`;
+}
+
+/**
  * Robust fetch helper that attempts primary URL and falls back to Cloud Run backend
  * if running on Netlify or if the primary endpoint returns 404/network error.
  */

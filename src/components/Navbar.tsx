@@ -68,6 +68,7 @@ interface NavbarProps {
   metricOverrides?: Record<string, OfficeFlyerMetricOverride>;
   onExportDatabaseBackup?: () => void;
   onImportDatabaseBackup?: (file: File) => void;
+  appVersion?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -87,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUserManagement,
   onExportDatabaseBackup,
   onImportDatabaseBackup,
+  appVersion,
   flyers,
   offices,
   deliveries,
@@ -150,6 +152,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
                 <span className="hidden sm:inline px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-800/80 tracking-wide">
                   Historical Villages
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-neutral-900 text-neutral-300 border border-neutral-700/80 tracking-tight"
+                  title="Versão do Sistema AHP &amp; Sincronização em tempo real ativa"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>v{appVersion || '1.0.1'}</span>
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 mt-0.5 hidden md:block">

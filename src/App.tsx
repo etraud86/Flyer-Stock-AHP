@@ -22,7 +22,8 @@ import { UserManagementModal } from './components/UserManagementModal';
 import { Footer } from './components/Footer';
 import { applyTargetStockToBatches, getFlyerTotalDispatched } from './utils/stockAdjustment';
 import { getCurrentSession, clearSession } from './utils/auth';
-import { fetchStockData, syncStockToServer } from './utils/apiConfig';
+import { fetchStockData, syncStockToServer, getWsUrl } from './utils/apiConfig';
+import { DEFAULT_APP_VERSION } from './version';
 
 import {
   ActiveTab,
@@ -101,20 +102,118 @@ export default function App() {
     initialDb.metricOverrides || {}
   );
 
+  // Dynamic program version state - starts at 1.0.1, auto-increments with each change (1.0.2, 1.0.3, ...)
+  const [appVersion, setAppVersion] = useState<string>(() => {
+    return localStorage.getItem('ahp_app_version') || DEFAULT_APP_VERSION;
+  });
+
+  const lastServerVersionRef = useRef<string>(localStorage.getItem('ahp_app_version') || DEFAULT_APP_VERSION);
+
+  // Client ID allows multiple browsers/IPs to distinguish their own broadcasts from remote updates
+  const clientIdRef = useRef<string>(() => {
+    try {
+      let cid = sessionStorage.getItem('ahp_client_id');
+      if (!cid) {
+        cid = 'client_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+        sessionStorage.setItem('ahp_client_id', cid);
+      }
+      return cid;
+    } catch {
+      return 'client_' + Date.now().toString(36);
+    }
+  }).current();
+
   // Tracks whether server data has been loaded so we never sync default empty data over existing server data
   const isServerHydratedRef = useRef(false);
   const hasLocalEditsRef = useRef(false);
+  const isApplyingRemoteSyncRef = useRef(false);
 
   const markDataEdited = useCallback(() => {
-    hasLocalEditsRef.current = true;
+    if (!isApplyingRemoteSyncRef.current) {
+      hasLocalEditsRef.current = true;
+    }
   }, []);
 
-  // Hardened Multi-Layer Persistence:
-  // On startup, check IndexedDB. If local data was ever cleared by browser or incognito, recover it immediately!
+  // Multi-Workstation & Multi-IP Central Sync:
+  // Authoritative server fetch ensures that any computer, browser, or IP immediately receives the latest shared data!
+  const fetchRemoteStock = useCallback(async () => {
+    try {
+      const res = await fetchStockData();
+      if (res && res.success && res.data) {
+        const s = res.data;
+        const incomingVersion = res.version || s.version;
+        const isNewVersion = incomingVersion && incomingVersion !== lastServerVersionRef.current;
+        const isInit = !isServerHydratedRef.current;
+
+        // Apply if not currently typing local edits, or if incoming server has a newer version
+        if (!hasLocalEditsRef.current || isNewVersion || isInit) {
+          isApplyingRemoteSyncRef.current = true;
+
+          if (Array.isArray(s.flyers) && s.flyers.length > 0) {
+            setFlyers(s.flyers);
+          }
+          if (Array.isArray(s.offices) && s.offices.length > 0) {
+            setOffices(s.offices);
+          }
+          if (Array.isArray(s.deliveries)) {
+            setDeliveries(s.deliveries);
+          }
+          if (Array.isArray(s.batches) && s.batches.length > 0) {
+            setBatches(s.batches);
+          }
+          if (Array.isArray(s.fairs)) {
+            setFairs(s.fairs);
+          }
+          if (Array.isArray(s.otherDeliveries)) {
+            setOtherDeliveries(s.otherDeliveries);
+          }
+          if (s.metricOverrides && typeof s.metricOverrides === 'object') {
+            setMetricOverrides(s.metricOverrides);
+          }
+
+          if (incomingVersion) {
+            const prevVer = lastServerVersionRef.current;
+            lastServerVersionRef.current = incomingVersion;
+            setAppVersion(incomingVersion);
+            localStorage.setItem('ahp_app_version', incomingVersion);
+
+            if (prevVer && prevVer !== incomingVersion && isServerHydratedRef.current) {
+              showToast(`Base de dados sincronizada automaticamente (v${incomingVersion})`);
+            }
+          }
+
+          // Keep local persistent database in sync with authoritative server state
+          persistDatabaseState({
+            flyers: s.flyers || [],
+            offices: s.offices || [],
+            deliveries: s.deliveries || [],
+            batches: s.batches || [],
+            fairs: s.fairs || [],
+            otherDeliveries: s.otherDeliveries || [],
+            metricOverrides: s.metricOverrides || {},
+          });
+
+          isServerHydratedRef.current = true;
+          hasLocalEditsRef.current = false;
+
+          setTimeout(() => {
+            isApplyingRemoteSyncRef.current = false;
+          }, 80);
+        }
+      }
+    } catch (err) {
+      console.warn('[Stock Sync] Central server fetch error:', err);
+    } finally {
+      isServerHydratedRef.current = true;
+    }
+  }, []);
+
+  // Hardened Multi-Layer Persistence fallback:
+  // On startup, check IndexedDB. If offline or before server responds, restore local copy
   useEffect(() => {
     loadFromIndexedDb()
       .then((idbState) => {
-        if (idbState) {
+        if (idbState && !isServerHydratedRef.current) {
           setDeliveries((curr) => (curr.length === 0 && idbState.deliveries?.length > 0 ? idbState.deliveries : curr));
           setFairs((curr) => (curr.length === 0 && idbState.fairs?.length > 0 ? idbState.fairs : curr));
           setOtherDeliveries((curr) =>
@@ -127,97 +226,118 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Multi-Workstation & Multi-IP Central Sync:
-  // Authoritative server fetch ensures that any computer, browser, or IP immediately receives the latest shared data!
-  const fetchRemoteStock = useCallback(async () => {
-    try {
-      const res = await fetchStockData();
-      if (res && res.success && res.data) {
-        const s = res.data;
-        if (Array.isArray(s.flyers) && s.flyers.length > 0) {
-          setFlyers(s.flyers);
-        }
-        if (Array.isArray(s.offices) && s.offices.length > 0) {
-          setOffices(s.offices);
-        }
-        if (Array.isArray(s.deliveries)) {
-          if (s.deliveries.length > 0) {
-            setDeliveries(s.deliveries);
-          } else {
-            // If server has empty deliveries but client has local un-synced deliveries, mark for sync
-            setDeliveries((curr) => {
-              if (curr.length > 0) hasLocalEditsRef.current = true;
-              return curr;
-            });
-          }
-        }
-        if (Array.isArray(s.batches) && s.batches.length > 0) {
-          setBatches(s.batches);
-        }
-        if (Array.isArray(s.fairs)) {
-          if (s.fairs.length > 0) {
-            setFairs(s.fairs);
-          } else {
-            setFairs((curr) => {
-              if (curr.length > 0) hasLocalEditsRef.current = true;
-              return curr;
-            });
-          }
-        }
-        if (Array.isArray(s.otherDeliveries)) {
-          if (s.otherDeliveries.length > 0) {
-            setOtherDeliveries(s.otherDeliveries);
-          } else {
-            setOtherDeliveries((curr) => {
-              if (curr.length > 0) hasLocalEditsRef.current = true;
-              return curr;
-            });
-          }
-        }
-        if (s.metricOverrides && typeof s.metricOverrides === 'object') {
-          setMetricOverrides(s.metricOverrides);
-        }
-
-        // Keep local persistent database in sync with authoritative server state
-        persistDatabaseState({
-          flyers: s.flyers || [],
-          offices: s.offices || [],
-          deliveries: s.deliveries || [],
-          batches: s.batches || [],
-          fairs: s.fairs || [],
-          otherDeliveries: s.otherDeliveries || [],
-          metricOverrides: s.metricOverrides || {},
-        });
-      }
-    } catch (err) {
-      console.warn('[Stock Sync] Central server fetch error:', err);
-    } finally {
-      isServerHydratedRef.current = true;
-    }
-  }, []);
-
-  // Fetch initial data immediately on mount
+  // 1. REAL-TIME WEBSOCKET SYNCHRONIZATION ACROSS WORKSTATIONS & BROWSERS
   useEffect(() => {
-    fetchRemoteStock();
-  }, [fetchRemoteStock]);
+    let ws: WebSocket | null = null;
+    let reconnectTimer: any = null;
+    let isDisposed = false;
 
-  // Real-time synchronization across workstations & browsers:
-  // Re-sync when switching back to tab and poll every 5 seconds
-  useEffect(() => {
-    const handleFocus = () => {
-      if (!hasLocalEditsRef.current) {
-        fetchRemoteStock();
+    const connectWebSocket = () => {
+      if (isDisposed) return;
+      try {
+        const wsUrl = getWsUrl();
+        if (!wsUrl) return;
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'sync:init' || msg.type === 'sync:broadcast') {
+              const isRemote = msg.senderId !== clientIdRef;
+              if (isRemote || msg.type === 'sync:init') {
+                if (msg.data && typeof msg.data === 'object') {
+                  const s = msg.data;
+                  isApplyingRemoteSyncRef.current = true;
+
+                  if (Array.isArray(s.flyers) && s.flyers.length > 0) setFlyers(s.flyers);
+                  if (Array.isArray(s.offices) && s.offices.length > 0) setOffices(s.offices);
+                  if (Array.isArray(s.deliveries)) setDeliveries(s.deliveries);
+                  if (Array.isArray(s.batches) && s.batches.length > 0) setBatches(s.batches);
+                  if (Array.isArray(s.fairs)) setFairs(s.fairs);
+                  if (Array.isArray(s.otherDeliveries)) setOtherDeliveries(s.otherDeliveries);
+                  if (s.metricOverrides && typeof s.metricOverrides === 'object') setMetricOverrides(s.metricOverrides);
+
+                  if (msg.version) {
+                    lastServerVersionRef.current = msg.version;
+                    setAppVersion(msg.version);
+                    localStorage.setItem('ahp_app_version', msg.version);
+                  }
+
+                  persistDatabaseState({
+                    flyers: s.flyers || [],
+                    offices: s.offices || [],
+                    deliveries: s.deliveries || [],
+                    batches: s.batches || [],
+                    fairs: s.fairs || [],
+                    otherDeliveries: s.otherDeliveries || [],
+                    metricOverrides: s.metricOverrides || {},
+                  });
+
+                  isServerHydratedRef.current = true;
+                  hasLocalEditsRef.current = false;
+
+                  setTimeout(() => {
+                    isApplyingRemoteSyncRef.current = false;
+                  }, 80);
+
+                  if (msg.type === 'sync:broadcast' && isRemote) {
+                    showToast(`Dados atualizados em tempo real (Versão v${msg.version || ''})`);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[WS-Client] Parse error:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isDisposed) {
+            reconnectTimer = setTimeout(connectWebSocket, 2500);
+          }
+        };
+
+        ws.onerror = () => {
+          try { ws?.close(); } catch (_) {}
+        };
+      } catch (e) {
+        if (!isDisposed) {
+          reconnectTimer = setTimeout(connectWebSocket, 4000);
+        }
       }
     };
+
+    connectWebSocket();
+
+    return () => {
+      isDisposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      try {
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+          ws.close();
+        }
+      } catch (_) {}
+    };
+  }, [clientIdRef]);
+
+  // 2. AUTOMATIC POLLING FALLBACK & TAB FOCUS RE-SYNC (Every 2 seconds)
+  useEffect(() => {
+    fetchRemoteStock();
+
+    const handleFocus = () => {
+      fetchRemoteStock();
+    };
+
     window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
     const interval = setInterval(() => {
-      if (!hasLocalEditsRef.current) {
-        fetchRemoteStock();
-      }
-    }, 5000);
+      fetchRemoteStock();
+    }, 2000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
       clearInterval(interval);
     };
   }, [fetchRemoteStock]);
@@ -359,7 +479,7 @@ export default function App() {
 
   // Synchronize stock changes to central server ONLY after initial server hydration and ONLY when user made edits
   useEffect(() => {
-    if (!isServerHydratedRef.current || !hasLocalEditsRef.current) {
+    if (!isServerHydratedRef.current || !hasLocalEditsRef.current || isApplyingRemoteSyncRef.current) {
       return;
     }
 
@@ -372,16 +492,23 @@ export default function App() {
         fairs,
         otherDeliveries,
         metricOverrides,
+        clientId: clientIdRef,
         updatedAt: Date.now(),
       })
-        .then(() => {
+        .then((res) => {
           hasLocalEditsRef.current = false;
+          if (res && res.version) {
+            lastServerVersionRef.current = res.version;
+            setAppVersion(res.version);
+            localStorage.setItem('ahp_app_version', res.version);
+            showToast(`Alterações guardadas & Versão atualizada para v${res.version}`);
+          }
         })
         .catch((err) => console.warn('[Stock Sync] Central broadcast notice:', err));
-    }, 600);
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides]);
+  }, [flyers, offices, deliveries, batches, fairs, otherDeliveries, metricOverrides, clientIdRef]);
 
   // Keep warehouse stock batches strictly connected to registered flyer materials
   useEffect(() => {
@@ -1132,17 +1259,44 @@ export default function App() {
         const parsed = JSON.parse(content);
         if (parsed) {
           markDataEdited();
-          if (Array.isArray(parsed.flyers) && parsed.flyers.length > 0) setFlyers(parsed.flyers);
-          if (Array.isArray(parsed.offices) && parsed.offices.length > 0) setOffices(parsed.offices);
-          if (Array.isArray(parsed.deliveries)) setDeliveries(parsed.deliveries);
-          if (Array.isArray(parsed.batches) && parsed.batches.length > 0) setBatches(parsed.batches);
-          if (Array.isArray(parsed.fairs)) setFairs(parsed.fairs);
-          if (Array.isArray(parsed.otherDeliveries)) setOtherDeliveries(parsed.otherDeliveries);
-          if (parsed.metricOverrides) setMetricOverrides(parsed.metricOverrides);
-          showToast('Database successfully restored from backup file!');
+          const targetFlyers = Array.isArray(parsed.flyers) && parsed.flyers.length > 0 ? parsed.flyers : flyers;
+          const targetOffices = Array.isArray(parsed.offices) && parsed.offices.length > 0 ? parsed.offices : offices;
+          const targetDeliveries = Array.isArray(parsed.deliveries) ? parsed.deliveries : deliveries;
+          const targetBatches = Array.isArray(parsed.batches) && parsed.batches.length > 0 ? parsed.batches : batches;
+          const targetFairs = Array.isArray(parsed.fairs) ? parsed.fairs : fairs;
+          const targetOther = Array.isArray(parsed.otherDeliveries) ? parsed.otherDeliveries : otherDeliveries;
+          const targetOverrides = parsed.metricOverrides || metricOverrides;
+
+          setFlyers(targetFlyers);
+          setOffices(targetOffices);
+          setDeliveries(targetDeliveries);
+          setBatches(targetBatches);
+          setFairs(targetFairs);
+          setOtherDeliveries(targetOther);
+          setMetricOverrides(targetOverrides);
+
+          // Direct sync to central server so all IPs, workstations, and browsers update immediately!
+          syncStockToServer({
+            flyers: targetFlyers,
+            offices: targetOffices,
+            deliveries: targetDeliveries,
+            batches: targetBatches,
+            fairs: targetFairs,
+            otherDeliveries: targetOther,
+            metricOverrides: targetOverrides,
+            clientId: clientIdRef,
+            updatedAt: Date.now(),
+          }).then((res) => {
+            if (res && res.version) {
+              lastServerVersionRef.current = res.version;
+              setAppVersion(res.version);
+              localStorage.setItem('ahp_app_version', res.version);
+              showToast(`Base de dados restaurada e sincronizada para todas as estações (v${res.version})!`);
+            }
+          });
         }
       } catch (err) {
-        showToast('Error restoring database: invalid backup file format.');
+        showToast('Erro ao restaurar base de dados: ficheiro inválido.');
       }
     };
     reader.readAsText(file);
@@ -1165,7 +1319,24 @@ export default function App() {
       setBatches(INITIAL_BATCHES);
       setFairs([]);
       setOtherDeliveries([]);
-      showToast('Database reset. Your previous data was saved to a backup file.');
+      syncStockToServer({
+        flyers: INITIAL_FLYER_TYPES,
+        offices,
+        deliveries: [],
+        batches: INITIAL_BATCHES,
+        fairs: [],
+        otherDeliveries: [],
+        metricOverrides: {},
+        clientId: clientIdRef,
+        updatedAt: Date.now(),
+      }).then((res) => {
+        if (res && res.version) {
+          lastServerVersionRef.current = res.version;
+          setAppVersion(res.version);
+          localStorage.setItem('ahp_app_version', res.version);
+          showToast(`Base de dados reiniciada & Versão atualizada para v${res.version}`);
+        }
+      });
     }
   };
 
@@ -1193,6 +1364,7 @@ export default function App() {
   if (!session) {
     return (
       <EnterLoginPage
+        appVersion={appVersion}
         onLoginSuccess={(newSession) => {
           setSession(newSession);
           showToast(`Welcome, ${newSession.user.name}! Secure session started.`);
@@ -1220,6 +1392,7 @@ export default function App() {
       {/* Main Top Navigation */}
       <div id="main-app-navbar" className="print:hidden">
         <Navbar
+          appVersion={appVersion}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onOpenNewDelivery={() => handleOpenNewDelivery()}
@@ -1372,6 +1545,7 @@ export default function App() {
       {/* Black Base Institutional Footer with Official Castle Logo & Metrics */}
       <div id="main-app-footer" className="print:hidden">
         <Footer
+          appVersion={appVersion}
           currentUser={session.user}
           onLogout={handleLogout}
           onOpenChangePassword={() => handleOpenUserManagement('change_password')}

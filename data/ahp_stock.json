@@ -1,4 +1,6 @@
 {
+  "version": "1.0.1",
+  "updatedAt": 1790329000000,
   "flyers": [
     {
       "id": "flyer-ahp-rot-45",
@@ -127,5 +129,6 @@
     }
   ],
   "fairs": [],
-  "otherDeliveries": []
+  "otherDeliveries": [],
+  "metricOverrides": {}
 }
